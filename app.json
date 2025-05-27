@@ -1,6 +1,7 @@
 {
   "expo": {
     "name": "jetop-ios-app",
+    "icon": "assets/app-logo.png",
     "slug": "jetop-ios-app",
     "version": "1.0.0",
     "scheme": "jetop-ios-app",
@@ -18,7 +19,6 @@
       "tsconfigPaths": true
     },
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "splash": {
       "image": "./assets/splash.png",

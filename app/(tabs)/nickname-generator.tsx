@@ -12,12 +12,9 @@ export default function NicknameScreen() {
       Alert.alert("Error", "Please enter a prompt");
       return;
     }
-
     setLoading(true);
     try {
-      // console.log("Generating nicknames for:", prompt); // Debug log
       const names = await generateNicknames(prompt);
-      //console.log("Generated names:", names); // Debug log
       setResults(names);
     } catch (error) {
       console.error("Error:", error);

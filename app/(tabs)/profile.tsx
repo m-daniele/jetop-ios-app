@@ -17,8 +17,7 @@ const ProfileScreen = () => {
   };
 
   return (
-    <>
-      <View style={styles.container}>
+    <View style={styles.container}>
         <SignedIn>
         <Text>Email: {user?.emailAddresses[0]?.emailAddress}</Text>
         <Text>Full Name: {user?.fullName}</Text>
@@ -26,8 +25,6 @@ const ProfileScreen = () => {
         <Button title="Logout" onPress={handleLogout} />
       </SignedIn>
     </View>
-    <Stack.Screen options={{ headerShown: false }} />
-    </>
   );
 };
 
