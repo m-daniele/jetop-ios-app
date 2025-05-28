@@ -180,3 +180,9 @@ export const generateNicknames = async (prompt: string) => {
 - Optimistic updates for better perceived performance
 - Database indexing on frequently queried fields
 - Proper error boundaries for crash prevention
+
+## Useful Links
+- [Ollama API](https://github.com/m-daniele/ollama-api.git)
+- [Clerk Documentation](https://clerk.com/docs)
+- [Supabase Docs](https://supabase.com/docs)
+- [Expo Router Guide](https://docs.expo.dev/router/introduction/)
