@@ -88,8 +88,10 @@ const styles = StyleSheet.create({
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
-      height: 4,
+      height: 3,
     },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
   },
   fabTouchable: {
     width: '100%',

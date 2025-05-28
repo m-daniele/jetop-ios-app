@@ -1,4 +1,4 @@
-import SocialLoginButton from "~/components/SocialLoginButton";
+import SocialLoginButton from "components/auth/SocialLoginButton";
 import { Button, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as WebBrowser from "expo-web-browser";
