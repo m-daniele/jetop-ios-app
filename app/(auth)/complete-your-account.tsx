@@ -11,8 +11,8 @@ import { useRouter } from "expo-router";
 import { useUser } from "@clerk/clerk-expo";
 import { useEffect, useMemo, useState } from "react";
 
-import TextInput from "components/Forms/TextInput";
-import RadioButtonInput from "components/Forms/RadioButtonInput";
+import TextInput from "components/forms/TextInput";
+import RadioButtonInput from "components/forms/RadioButtonInput";
 
 const CompleteYourAccountScreen = () => {
   const { user, isLoaded } = useUser();

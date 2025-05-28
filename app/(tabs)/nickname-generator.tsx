@@ -1,11 +1,14 @@
 import { useState } from "react";
-import { TextInput, Button, Text, ScrollView, Alert, StyleSheet } from "react-native";
+import { TextInput, Button, Text, ScrollView, Alert, StyleSheet, TouchableOpacity } from "react-native";
 import { generateNicknames } from "lib/ollama";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { useUser } from "@clerk/clerk-expo";
 
 export default function NicknameScreen() {
   const [prompt, setPrompt] = useState("");
   const [results, setResults] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
+  const { user } = useUser();
 
   const handleGenerate = async () => {
     if (!prompt.trim()) {
@@ -24,8 +27,31 @@ export default function NicknameScreen() {
     }
   };
 
+   const cleanNickname = (nickname: string) => {
+    return nickname.replace(/^\d+\.\s*/, '').replace(/\s+/g, '').trim();
+  };
+
+  const handleNicknamePress = async (nickname: string) => {
+    const cleanName = cleanNickname(nickname);
+    
+    if (!user) {
+      Alert.alert("Errore", "Utente non autenticato");
+      return;
+    }
+
+    try {
+      await user.update({
+        username: cleanName
+      });
+      Alert.alert("Successo", `Username impostato su: ${cleanName}`);
+    } catch (error) {
+      console.error("Errore nell'aggiornamento username:", error);
+      Alert.alert("Errore", "Impossibile aggiornare l'username. Potrebbe essere già in uso.");
+    }
+  };
+
   return (
-    <ScrollView className="p-4">
+    <SafeAreaView className="p-4">
       <TextInput
         placeholder="Descrivi lo stile dei nickname"
         value={prompt}
@@ -33,15 +59,24 @@ export default function NicknameScreen() {
         className="border p-2 mb-2 rounded"
       />
       <Button 
-        title={loading ? "Generating..." : "Genera"} 
+        title={loading ? "Generating..." : "Generate"} 
         onPress={handleGenerate}
         disabled={loading}
       />
       {results.map((name, index) => (
-        <Text key={index} className="mt-2 text-lg">
-          {name}
-        </Text>
+        <TouchableOpacity 
+          key={index}
+          onPress={() => handleNicknamePress(name)}
+          className="mt-2 p-3 bg-blue-100 rounded-lg border border-blue-200"
+        >
+          <Text className="text-lg text-blue-800 text-center">
+            {cleanNickname(name)}
+          </Text>
+        </TouchableOpacity>
       ))}
-    </ScrollView>
+      <Text className="mt-4 text-gray-500">
+        AI content may not always be accurate or appropriate. Use at your own risk.
+      </Text>
+    </SafeAreaView>
   );
 }

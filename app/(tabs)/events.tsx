@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Button, Text, ScrollView } from "react-native";
+import { Button, Text, SafeAreaView} from "react-native";
 import { getEvents } from "lib/events";
 import { createBooking } from "~/lib/bookings";
 
@@ -11,15 +11,14 @@ export default function EventList() {
   }, []);
 
   return (
-    <ScrollView className="p-4">
-      
+    <SafeAreaView className="p-4">
+      <><Text className="mb-4 text-lg ">Event List compare qui</Text></>
       {events.map((e) => (
         <Text key={e.id} className="mb-4 text-lg">
           {e.title} - {e.date}
           <Button title="Prenota" onPress={() => createBooking(e.id)} />
         </Text>
       ))}
-      
-    </ScrollView>
+    </SafeAreaView>
   );
 }

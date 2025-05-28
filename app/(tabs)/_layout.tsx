@@ -1,9 +1,7 @@
 import { Link, Tabs } from 'expo-router';
-import { Ionicons } from "@expo/vector-icons";
 import { View } from 'react-native';
-import { HeaderButton } from '../../components/HeaderButton';
-import { TabBarIcon } from '../../components/TabBarIcon';
-import { CalendarDays, MapPin } from "lucide-react-native" 
+import { HeaderButton } from 'components/navigation/HeaderButton';
+import {CalendarRange, House, CircleUserRound,Dices,Cpu} from "lucide-react-native" 
 
 // Custom component for circular tab icons
 import { ReactNode } from 'react';
@@ -22,6 +20,8 @@ const CircularTabIcon = ({ children, focused }: CircularTabIconProps) => (
       backgroundColor: focused ? '#D1CFC8' : 'transparent',
       justifyContent: 'space-around',
       alignItems: 'center',
+      minHeight: 44, 
+      minWidth: 44,
     }}
   >
     {children}
@@ -32,6 +32,10 @@ export default function TabLayout() {
   return (
     <Tabs
       screenOptions={{
+        headerTitle: '', // Nessun titolo
+        headerTransparent: true, // Header opaco (mantiene lo spazio)
+        headerShown: true, // Mantiene l'header visibile per lo spacing
+        // se lo metto qui funziona solo su tab one e non sulle altre
         tabBarActiveTintColor: '#000000',
         tabBarInactiveTintColor: '#666666',
         tabBarShowLabel: false,
@@ -55,7 +59,7 @@ export default function TabLayout() {
           shadowRadius: 3.84,
           justifyContent: 'space-around',
           paddingHorizontal: 20,
-          paddingVertical: 30,
+          paddingVertical: 15,
         },
         tabBarItemStyle: { 
           flex: 1,
@@ -67,12 +71,12 @@ export default function TabLayout() {
       }}
     >
       <Tabs.Screen
-        name="index"
+        name="home"
         options={{
           title: 'Tab One',
           tabBarIcon: ({ color, focused }) => (
             <CircularTabIcon focused={focused}>
-              <CalendarDays color="#000" size={20} />
+              <House color={focused ? 'black' : 'grey'}  size={24} />
             </CircularTabIcon>
           ),
           headerRight: () => (
@@ -83,31 +87,21 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="game"
+        name="events"
         options={{
-          headerShown: true,
           tabBarIcon: ({ color, focused }) => (
             <CircularTabIcon focused={focused}>
-              <Ionicons 
-                name="game-controller-outline" 
-                size={28} 
-                color={focused ? 'black' : 'grey'} 
-              />
+              <CalendarRange color={focused ? 'black' : 'grey'}  size={24} />
             </CircularTabIcon>
           ),
         }}
       />
       <Tabs.Screen
-        name="profile"
+        name="game"
         options={{
-          headerShown: true,
           tabBarIcon: ({ color, focused }) => (
             <CircularTabIcon focused={focused}>
-              <Ionicons 
-                name="person-circle-outline" 
-                size={28} 
-                color={focused ? 'black' : 'grey'} 
-              />
+              <Dices color={focused ? 'black' : 'grey'}  size={24} />
             </CircularTabIcon>
           ),
         }}
@@ -115,14 +109,19 @@ export default function TabLayout() {
       <Tabs.Screen
         name="nickname-generator"
         options={{
-          headerShown: true,
           tabBarIcon: ({ color, focused }) => (
             <CircularTabIcon focused={focused}>
-              <Ionicons 
-                name="aperture-outline" 
-                size={28} 
-                color={focused ? 'black' : 'grey'} 
-              />
+              <Cpu color={focused ? 'black' : 'grey'}  size={24} />
+            </CircularTabIcon>
+          ),
+        }}
+      /> 
+      <Tabs.Screen
+        name="profile"
+        options={{
+          tabBarIcon: ({ color, focused }) => (
+            <CircularTabIcon focused={focused}>
+              <CircleUserRound color={focused ? 'black' : 'grey'}  size={24} />
             </CircularTabIcon>
           ),
         }}

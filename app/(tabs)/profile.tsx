@@ -1,6 +1,7 @@
 import { SignedIn, useClerk } from "@clerk/clerk-expo";
 import { Button, StyleSheet, Text, View } from "react-native";
 import { Stack, useRouter } from "expo-router";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 const ProfileScreen = () => {
   const { signOut, user } = useClerk();
@@ -17,14 +18,14 @@ const ProfileScreen = () => {
   };
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container}>
         <SignedIn>
         <Text>Email: {user?.emailAddresses[0]?.emailAddress}</Text>
         <Text>Full Name: {user?.fullName}</Text>
         <Text>username: {user?.username || "N/A"}</Text>
         <Button title="Logout" onPress={handleLogout} />
       </SignedIn>
-    </View>
+    </SafeAreaView>
   );
 };
 

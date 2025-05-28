@@ -21,8 +21,9 @@ SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
-  const [loaded] = useFonts({
-    'RedHatDisplay-Regular': require('assets/fonts/RedHatDisplay-Regular.ttf'),
+  
+  const [loaded, error] = useFonts({
+    'RedHatDisplay-Regular': require('assets/fonts/RedHatDisplay-Regular.ttf'), 
   });
 
   useEffect(() => {
