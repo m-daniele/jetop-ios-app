@@ -70,22 +70,7 @@ export default function TabLayout() {
         },
       }}
     >
-      <Tabs.Screen
-        name="home"
-        options={{
-          title: 'Tab One',
-          tabBarIcon: ({ color, focused }) => (
-            <CircularTabIcon focused={focused}>
-              <House color={focused ? 'black' : 'grey'}  size={24} />
-            </CircularTabIcon>
-          ),
-          headerRight: () => (
-            <Link href="/profile" asChild>
-              <HeaderButton />
-            </Link>
-          ),
-        }}
-      />
+      
       <Tabs.Screen
         name="events"
         options={{

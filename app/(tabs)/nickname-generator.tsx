@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { TextInput, Button, Text, ScrollView, Alert, StyleSheet, TouchableOpacity } from "react-native";
+import { TextInput, Button, Text, ScrollView, Alert, TouchableWithoutFeedback, Keyboard, TouchableOpacity } from "react-native";
 import { generateNicknames } from "lib/ollama";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useUser } from "@clerk/clerk-expo";
@@ -28,7 +28,9 @@ export default function NicknameScreen() {
   };
 
    const cleanNickname = (nickname: string) => {
-    return nickname.replace(/^\d+\.\s*/, '').replace(/\s+/g, '').trim();
+    return nickname.replace(/^\d+\.\s*/, '')
+                   .replace(/even|&/gi, '')
+                   .replace(/\s+/g, '').trim();
   };
 
   const handleNicknamePress = async (nickname: string) => {
@@ -51,6 +53,7 @@ export default function NicknameScreen() {
   };
 
   return (
+    <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
     <SafeAreaView className="p-4">
       <TextInput
         placeholder="Descrivi lo stile dei nickname"
@@ -78,5 +81,6 @@ export default function NicknameScreen() {
         AI content may not always be accurate or appropriate. Use at your own risk.
       </Text>
     </SafeAreaView>
+    </TouchableWithoutFeedback>
   );
 }
