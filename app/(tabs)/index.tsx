@@ -1,162 +1,257 @@
-import { SignedIn, useClerk } from "@clerk/clerk-expo";
-import { StyleSheet, Text, View, TouchableOpacity, Image, ScrollView } from "react-native";
-import { Stack, useRouter } from "expo-router";
-import { SafeAreaView } from "react-native-safe-area-context";
+import React, { useState, useEffect } from 'react';
+import { View, Text, Alert, FlatList, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, Image, RefreshControl } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
-import { Mail, User, AtSign, LogOut, Camera } from 'lucide-react-native';
-import { useState } from 'react';
+import { createBooking, checkUserBooking } from 'lib/bookings';
+import { getUpcomingEvents } from 'lib/events';
+import { Event } from 'types/database';
+import { router, Stack } from 'expo-router';
+import { useUser } from "@clerk/clerk-expo";
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { Calendar, MapPin, Users, Plus, Sparkles } from 'lucide-react-native';
 
-const ProfileScreen = () => {
-  const { signOut, user } = useClerk();
-  const router = useRouter();
-  const [isLoggingOut, setIsLoggingOut] = useState(false);
+interface EventItemProps {
+  event: Event;
+  userId: string;
+  onPress: () => void;
+}
 
-  const handleLogout = async () => {
+const EventItem: React.FC<EventItemProps> = ({ event, userId, onPress }) => {
+  const [isBooked, setIsBooked] = useState<boolean>(false);
+  const [loading, setLoading] = useState<boolean>(false);
+
+  useEffect(() => {
+    checkIfBooked();
+  }, []);
+
+  const checkIfBooked = async () => {
     try {
-      setIsLoggingOut(true);
-      await signOut();
-      router.replace("/(auth)");
+      const booked = await checkUserBooking(event.id, userId);
+      setIsBooked(booked);
     } catch (error) {
-      console.log("Logout error:", error);
-      setIsLoggingOut(false);
+      console.error('Error checking booking status:', error);
     }
   };
 
-  const getInitials = () => {
-    if (user?.firstName && user?.lastName) {
-      return `${user.firstName[0]}${user.lastName[0]}`.toUpperCase();
-    }
-    return user?.username?.[0]?.toUpperCase() || 'U';
-  };
+  const availableSpots = event.max_guests - event.booked_count;
+  const isSoldOut = availableSpots <= 0;
+  const spotsPercentage = (event.booked_count / event.max_guests) * 100;
 
   return (
-    <LinearGradient
-      colors={['#0F0C29', '#302B63', '#24243e']}
-      style={styles.gradient}
-    >
-      <SafeAreaView style={styles.container}>
-        <ScrollView 
-          contentContainerStyle={styles.scrollContent}
-          showsVerticalScrollIndicator={false}
-        >
-          <SignedIn>
-            {/* Header Section */}
-            <View style={styles.headerSection}>
-              <Text style={styles.title}>Profile</Text>
-              <Text style={styles.subtitle}>Manage your account</Text>
-            </View>
-
-            {/* Profile Picture Section */}
-            <View style={styles.profilePictureSection}>
-              <View style={styles.profilePictureContainer}>
-                {user?.imageUrl ? (
-                  <Image 
-                    source={{ uri: user.imageUrl }} 
-                    style={styles.profileImage}
-                  />
-                ) : (
-                  <LinearGradient
-                    colors={['#a855f7', '#9333ea']}
-                    style={styles.profileImagePlaceholder}
-                  >
-                    <Text style={styles.initials}>{getInitials()}</Text>
-                  </LinearGradient>
-                )}
-                
-                {/* Camera overlay for changing picture */}
-                <TouchableOpacity style={styles.cameraButton}>
-                  <BlurView intensity={50} tint="dark" style={styles.cameraBlur}>
-                    <Camera color="white" size={20} />
-                  </BlurView>
-                </TouchableOpacity>
+    <TouchableOpacity onPress={onPress} activeOpacity={0.8}>
+      <BlurView intensity={20} tint="dark" style={styles.eventCard}>
+        {/* Event Image - Smaller height */}
+        {event.image_url && (
+          <Image source={{ uri: event.image_url }} style={styles.eventImage} />
+        )}
+        
+        <View style={styles.eventContent}>
+          {/* Title and Status in same row */}
+          <View style={styles.titleRow}>
+            <Text style={styles.eventTitle} numberOfLines={1}>{event.title}</Text>
+            {isBooked && (
+              <View style={styles.bookedBadge}>
+                <Sparkles size={10} color="white" />
+                <Text style={styles.bookedText}>Booked</Text>
               </View>
-              
-              <Text style={styles.userName}>{user?.fullName || 'User'}</Text>
-              <Text style={styles.userUsername}>@{user?.username || 'username'}</Text>
+            )}
+          </View>
+          
+          {/* Event Details - Compact */}
+          <View style={styles.eventDetails}>
+            {/* Date */}
+            <View style={styles.detailRow}>
+              <Calendar size={12} color="rgba(255,255,255,0.5)" />
+              <Text style={styles.detailText}>
+                {new Date(event.date).toLocaleDateString('en-US', {
+                  month: 'short',
+                  day: 'numeric',
+                  hour: '2-digit',
+                  minute: '2-digit'
+                })}
+              </Text>
             </View>
-
-            {/* Info Cards */}
-            <View style={styles.infoSection}>
-              {/* Email Card */}
-              <BlurView intensity={20} tint="dark" style={styles.infoCard}>
-                <View style={styles.infoCardContent}>
-                  <View style={styles.iconContainer}>
-                    <Mail color="rgba(255,255,255,0.8)" size={20} />
-                  </View>
-                  <View style={styles.infoTextContainer}>
-                    <Text style={styles.infoLabel}>Email</Text>
-                    <Text style={styles.infoValue}>
-                      {user?.emailAddresses[0]?.emailAddress}
-                    </Text>
-                  </View>
-                </View>
-              </BlurView>
-
-              {/* Full Name Card */}
-              <BlurView intensity={20} tint="dark" style={styles.infoCard}>
-                <View style={styles.infoCardContent}>
-                  <View style={styles.iconContainer}>
-                    <User color="rgba(255,255,255,0.8)" size={20} />
-                  </View>
-                  <View style={styles.infoTextContainer}>
-                    <Text style={styles.infoLabel}>Full Name</Text>
-                    <Text style={styles.infoValue}>
-                      {user?.fullName || 'Not set'}
-                    </Text>
-                  </View>
-                </View>
-              </BlurView>
-
-              {/* Username Card */}
-              <BlurView intensity={20} tint="dark" style={styles.infoCard}>
-                <View style={styles.infoCardContent}>
-                  <View style={styles.iconContainer}>
-                    <AtSign color="rgba(255,255,255,0.8)" size={20} />
-                  </View>
-                  <View style={styles.infoTextContainer}>
-                    <Text style={styles.infoLabel}>Username</Text>
-                    <Text style={styles.infoValue}>
-                      {user?.username || 'Not set'}
-                    </Text>
-                  </View>
-                </View>
-              </BlurView>
+            
+            {/* Location */}
+            {event.location && (
+              <View style={styles.detailRow}>
+                <MapPin size={12} color="rgba(255,255,255,0.5)" />
+                <Text style={styles.detailText} numberOfLines={1}>
+                  {event.location.split(',')[0]}
+                </Text>
+              </View>
+            )}
+            
+            {/* Guests */}
+            <View style={styles.detailRow}>
+              <Users size={12} color="rgba(255,255,255,0.5)" />
+              <Text style={styles.detailText}>
+                {availableSpots}/{event.max_guests}
+              </Text>
             </View>
-
-            {/* Logout Button */}
-            <View style={styles.logoutSection}>
-              <TouchableOpacity
-                onPress={handleLogout}
-                disabled={isLoggingOut}
-                activeOpacity={0.8}
-              >
-                <LinearGradient
-                  colors={['#dc2626', '#b91c1c']}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  style={styles.logoutButton}
-                >
-                  <LogOut color="white" size={20} />
-                  <Text style={styles.logoutText}>
-                    {isLoggingOut ? 'Logging out...' : 'Logout'}
-                  </Text>
-                </LinearGradient>
-              </TouchableOpacity>
+          </View>
+          
+          {/* Progress Bar */}
+          <View style={styles.progressContainer}>
+            <View style={styles.progressBar}>
+              <LinearGradient
+                colors={isSoldOut ? ['#ef4444', '#dc2626'] : ['#5000ce', '#6900a3']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={[styles.progressFill, { width: `${spotsPercentage}%` }]}
+              />
             </View>
-
-            {/* Footer */}
-            <Text style={styles.footerText}>
-              Member since {new Date(user?.createdAt || Date.now()).getFullYear()}
-            </Text>
-          </SignedIn>
-        </ScrollView>
-      </SafeAreaView>
-    </LinearGradient>
+            {isSoldOut && !isBooked && (
+              <Text style={styles.soldOutText}>Sold Out</Text>
+            )}
+          </View>
+        </View>
+      </BlurView>
+    </TouchableOpacity>
   );
 };
 
-export default ProfileScreen;
+export default function EventsScreen() {
+  const { user, isLoaded } = useUser();
+  const [events, setEvents] = useState<Event[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [refreshing, setRefreshing] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (isLoaded) {
+      loadEvents();
+    }
+  }, [isLoaded]);
+
+  const loadEvents = async () => {
+    try {
+      const data = await getUpcomingEvents();
+      setEvents(data);
+    } catch (error) {
+      console.error('Error loading events:', error);
+      Alert.alert('Error', 'Unable to load events');
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
+
+  const handleRefresh = () => {
+    setRefreshing(true);
+    loadEvents();
+  };
+
+  const handleEventPress = (eventId: string) => {
+    router.push({ pathname: "/event-details", params: { id: eventId } });
+  };
+
+  const handleCreateEvent = () => {
+    router.push('/create-event');
+  };
+
+  const renderEventItem = ({ item }: { item: Event }) => (
+    <EventItem 
+      event={item} 
+      userId={user?.id || ''} 
+      onPress={() => handleEventPress(item.id)}
+    />
+  );
+
+  if (!isLoaded) {
+    return (
+      <LinearGradient colors={['#0F0C29', '#302B63', '#24243e']} style={styles.gradient}>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#a855f7" />
+        </View>
+      </LinearGradient>
+    );
+  }
+
+  if (!user) {
+    return (
+      <LinearGradient colors={['#0F0C29', '#302B63', '#24243e']} style={styles.gradient}>
+        <View style={styles.errorContainer}>
+          <Text style={styles.errorText}>You must be logged in to view events</Text>
+        </View>
+      </LinearGradient>
+    );
+  }
+
+  return (
+    <>
+      <Stack.Screen 
+        options={{
+          headerShown: true,
+          headerTitle: '',
+          headerTransparent: true,
+          headerStyle: { backgroundColor: 'transparent' },
+        }}
+      />
+      
+      <LinearGradient
+        colors={['#0F0C29', '#302B63', '#24243e']}
+        style={styles.gradient}
+      >
+        <SafeAreaView style={styles.container}>
+          {/* Header Section */}
+          <View style={styles.headerSection}>
+            <Text style={styles.title}>Events</Text>
+            <Text style={styles.subtitle}>
+              Welcome back, {user.firstName || 'there'}!
+            </Text>
+          </View>
+
+          {/* Events List */}
+          {loading ? (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="large" color="#a855f7" />
+            </View>
+          ) : (
+            <FlatList
+              data={events}
+              renderItem={renderEventItem}
+              keyExtractor={(item) => item.id}
+              contentContainerStyle={styles.listContent}
+              showsVerticalScrollIndicator={false}
+              refreshing={refreshing}
+              refreshControl={
+                <RefreshControl
+                  refreshing={refreshing}
+                  onRefresh={handleRefresh}
+                  tintColor="white"
+                  colors={["white"]}
+                />
+              }
+              onRefresh={handleRefresh}
+              ListEmptyComponent={
+                <View style={styles.emptyContainer}>
+                  <Text style={styles.emptyText}>No events available</Text>
+                  <Text style={styles.emptySubtext}>Be the first to create one!</Text>
+                </View>
+              }
+            />
+          )}
+
+          {/* Floating Action Button */}
+          <TouchableOpacity
+            onPress={handleCreateEvent}
+            activeOpacity={0.8}
+            style={styles.fab}
+          >
+            <LinearGradient
+              colors={['#5000ce', '#6900a3']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.fabGradient}
+            >
+              <Plus color="white" size={24} />
+            </LinearGradient>
+          </TouchableOpacity>
+        </SafeAreaView>
+      </LinearGradient>
+    </>
+  );
+}
 
 const styles = StyleSheet.create({
   gradient: {
@@ -165,149 +260,167 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  scrollContent: {
+  listContent: {
+    paddingHorizontal: 20,
+    paddingBottom: 100,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    minHeight: 200,
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
     padding: 20,
-    paddingTop: 40,
+  },
+  errorText: {
+    fontSize: 18,
+    color: '#ef4444',
+    textAlign: 'center',
   },
   headerSection: {
-    alignItems: 'center',
-    marginBottom: 30,
+    paddingHorizontal: 20,
+    paddingTop: 50,
+    paddingBottom: 20,
   },
   title: {
-    fontSize: 36,
+    fontSize: 32,
     fontWeight: '800',
     color: '#fff',
-    marginBottom: 8,
+    marginBottom: 4,
     letterSpacing: -0.5,
   },
   subtitle: {
-    fontSize: 18,
-    color: 'rgba(255,255,255,0.7)',
-    letterSpacing: 0.5,
-  },
-  profilePictureSection: {
-    alignItems: 'center',
-    marginBottom: 40,
-  },
-  profilePictureContainer: {
-    position: 'relative',
-    marginBottom: 16,
-  },
-  profileImage: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    borderWidth: 3,
-    borderColor: 'rgba(255,255,255,0.2)',
-  },
-  profileImagePlaceholder: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 3,
-    borderColor: 'rgba(255,255,255,0.2)',
-  },
-  initials: {
-    fontSize: 36,
-    fontWeight: '700',
-    color: '#fff',
-  },
-  cameraButton: {
-    position: 'absolute',
-    bottom: 0,
-    right: 0,
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    overflow: 'hidden',
-  },
-  cameraBlur: {
-    width: '100%',
-    height: '100%',
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: 'rgba(168,85,247,0.3)',
-  },
-  userName: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#fff',
-    marginBottom: 4,
-  },
-  userUsername: {
     fontSize: 16,
-    color: 'rgba(255,255,255,0.6)',
+    color: 'rgba(255,255,255,0.7)',
+    lineHeight: 22,
   },
-  infoSection: {
-    gap: 12,
-    marginBottom: 40,
-  },
-  infoCard: {
-    borderRadius: 20,
+  eventCard: {
     overflow: 'hidden',
+    borderRadius: 16,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.1)',
-  },
-  infoCardContent: {
     backgroundColor: 'rgba(255,255,255,0.05)',
-    padding: 20,
+    marginBottom: 12,
+  },
+  eventImage: {
+    width: '100%',
+    height: 120,
+    resizeMode: 'cover',
+  },
+  eventContent: {
+    padding: 16,
+  },
+  titleRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 16,
+    justifyContent: 'space-between',
+    marginBottom: 4,
   },
-  iconContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+  eventTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#fff',
+    letterSpacing: -0.3,
+    flex: 1,
+    marginRight: 8,
+    marginBottom : 3,
+  },
+  eventDescription: {
+    fontSize: 13,
+    color: 'rgba(255,255,255,0.5)',
+    marginBottom: 10,
+    lineHeight: 18,
+  },
+  eventDetails: {
+    flexDirection: 'row',
+    gap: 16,
+    marginBottom: 10,
+    flexWrap: 'wrap',
+  },
+  detailRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  detailText: {
+    fontSize: 12,
+    color: 'rgba(255,255,255,0.7)',
+  },
+  progressContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  progressBar: {
+    flex: 1,
+    height: 4,
     backgroundColor: 'rgba(255,255,255,0.1)',
+    borderRadius: 2,
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: '100%',
+    borderRadius: 2,
+  },
+  bookedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(168, 85, 247, 0.2)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(168, 85, 247, 0.3)',
+  },
+  bookedText: {
+    fontSize: 10,
+    color: '#a855f7',
+    fontWeight: '600',
+  },
+  soldOutText: {
+    fontSize: 10,
+    color: '#ef4444',
+    fontWeight: '600',
+  },
+  emptyContainer: {
+    flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    minHeight: 300,
   },
-  infoTextContainer: {
-    flex: 1,
+  emptyText: {
+    fontSize: 20,
+    color: 'rgba(255,255,255,0.8)',
+    marginBottom: 8,
   },
-  infoLabel: {
-    fontSize: 12,
-    color: 'rgba(255,255,255,0.5)',
-    marginBottom: 4,
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-  },
-  infoValue: {
+  emptySubtext: {
     fontSize: 16,
-    color: '#fff',
-    fontWeight: '500',
+    color: 'rgba(255,255,255,0.5)',
   },
-  logoutSection: {
-    alignItems: 'center',
-    marginBottom: 40,
-  },
-  logoutButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    paddingVertical: 16,
-    paddingHorizontal: 32,
-    borderRadius: 30,
-    shadowColor: '#dc2626',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.3,
+  fab: {
+    position: 'absolute',
+    bottom: 30,
+    right: 20,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    shadowColor: '#a855f7',
+    shadowOffset: { width: 0, height: 5 },
+    shadowOpacity: 0.4,
     shadowRadius: 16,
     elevation: 8,
+    marginBottom:100,
   },
-  logoutText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#fff',
-    letterSpacing: 0.5,
-  },
-  footerText: {
-    fontSize: 12,
-    color: 'rgba(255,255,255,0.4)',
-    textAlign: 'center',
-    letterSpacing: 0.5,
-    marginBottom: 100,
+  fabGradient: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 28,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 });

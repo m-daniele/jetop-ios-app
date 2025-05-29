@@ -28,21 +28,28 @@ export async function getEventById(id: string): Promise<Event | null> {
 export async function createEvent(event: CreateEventInput, clerkUserId: string): Promise<Event> {
   if (!clerkUserId) throw new Error("User not authenticated");
 
-  const eventData = {
+  const eventData: CreateEventInput = {
     ...event,
     owner_id: clerkUserId // Use Clerk user ID
   };
 
   const { data, error } = await supabase
-    .from("events")
-    .insert([eventData])
+    .from('events')
+    .insert(eventData)
     .select()
     .single();
-  
-  if (error) throw error;
-  return data as Event;
-}
 
+  if (error) {
+    console.error('Error creating event:', error);
+    throw new Error(error.message || 'Failed to create event');
+  }
+
+  if (!data) {
+    throw new Error('No data returned from database');
+  }
+
+  return data;
+}
 export async function getUpcomingEvents(): Promise<Event[]> {
   const now = new Date().toISOString();
   

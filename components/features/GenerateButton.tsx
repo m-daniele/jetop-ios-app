@@ -79,13 +79,13 @@ const GenerateButton = ({ onPress, loading }: { onPress: () => void, loading?: b
               {loading ? (
                 <>
                   <Animated.View style={{ transform: [{ rotate: spin }] }}>
-                    <Ionicons name="sync" size={24} color="white" />
+                    <Ionicons name="sync" size={18} color="white" />
                   </Animated.View>
-                  <Text style={styles.buttonText}>Generating Magic...</Text>
+                  <Text style={styles.buttonText}>Generating...</Text>
                 </>
               ) : (
                 <>
-                  <Ionicons name="sparkles" size={24} color="white" />
+                  <Ionicons name="sparkles" size={18} color="white" />
                   <Text style={styles.buttonText}>Generate</Text>
                 </>
               )}
@@ -104,7 +104,9 @@ export default GenerateButton;
 
 const styles = StyleSheet.create({
   buttonContainer: {
-    alignItems: "center",   
+    alignItems: "center",
+    marginTop:20,  
+    marginBottom:6, 
   },
   gradient: {
     borderRadius: 30,

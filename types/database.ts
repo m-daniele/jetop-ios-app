@@ -10,6 +10,7 @@ export interface Event {
   created_at: string;
   max_guests: number;
   booked_count: number;
+  image_url?: string;
 }
 
 export interface Booking {
@@ -33,4 +34,5 @@ export interface CreateEventInput {
   date: string;
   max_guests: number;
   owner_id?: string;
+  image_url?: string;
 }

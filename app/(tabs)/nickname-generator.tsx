@@ -133,7 +133,7 @@ export default function NicknameScreen() {
                         colors={
                           selectedIndex === index 
                             ? ['#667eea', '#764ba2'] 
-                            : ['#2193b0', '#6dd5ed']
+                            : ['#5000ce', '#6900a3'] 
                         }
                         start={{ x: 0, y: 0 }}
                         end={{ x: 1, y: 1 }}

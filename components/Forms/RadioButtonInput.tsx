@@ -1,11 +1,15 @@
 import { Controller } from "react-hook-form";
 import {
   StyleSheet,
-  TextInput as RNTextInput,
   View,
   Text,
   TouchableOpacity,
+  Animated,
 } from "react-native";
+import { LinearGradient } from 'expo-linear-gradient';
+import { BlurView } from 'expo-blur';
+import { Check } from 'lucide-react-native';
+import React from 'react';
 
 const RadioButtonInput = ({
   control,
@@ -16,7 +20,7 @@ const RadioButtonInput = ({
   options,
 }: {
   control: any;
-  placeholder: string;
+  placeholder?: string;
   required?: boolean;
   label: string;
   name: string;
@@ -33,17 +37,54 @@ const RadioButtonInput = ({
     onChange: (value: string) => void;
     isSelected: boolean;
   }) => {
+    const scaleAnim = React.useRef(new Animated.Value(1)).current;
+
+    const handlePress = () => {
+      Animated.sequence([
+        Animated.timing(scaleAnim, {
+          toValue: 0.95,
+          duration: 100,
+          useNativeDriver: true,
+        }),
+        Animated.timing(scaleAnim, {
+          toValue: 1,
+          duration: 100,
+          useNativeDriver: true,
+        }),
+      ]).start();
+      onChange(value);
+    };
+
     return (
-      <TouchableOpacity
-        style={[
-          styles.option,
-          isSelected && { backgroundColor: "rebeccapurple", borderColor: "rebeccapurple" },
-        ]}
-        onPress={() => onChange(value)}
-      >
-        <Text style={[styles.optionText, isSelected && { color: "white" }]}>
-          {label}
-        </Text>
+      <TouchableOpacity onPress={handlePress} activeOpacity={0.8}>
+        <Animated.View
+          style={[
+            styles.optionWrapper,
+            { transform: [{ scale: scaleAnim }] },
+          ]}
+        >
+          {isSelected ? (
+            <LinearGradient
+              colors={['#a855f7', '#9333ea']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.option}
+            >
+              <Check size={14} color="white" style={styles.checkIcon} />
+              <Text style={[styles.optionText, styles.selectedText]}>
+                {label}
+              </Text>
+            </LinearGradient>
+          ) : (
+            <View style={styles.unselectedOption}>
+              <BlurView intensity={20} tint="dark" style={styles.optionBlur}>
+                <View style={styles.optionInner}>
+                  <Text style={styles.optionText}>{label}</Text>
+                </View>
+              </BlurView>
+            </View>
+          )}
+        </Animated.View>
       </TouchableOpacity>
     );
   };
@@ -58,11 +99,10 @@ const RadioButtonInput = ({
         <View style={styles.container}>
           <Text style={styles.label}>
             {label}
-
-            {required && <Text style={{ color: "red" }}>*</Text>}
+            {required && <Text style={styles.required}> *</Text>}
           </Text>
           {placeholder && (
-            <Text style={{ color: "gray", fontSize: 12 }}>{placeholder}</Text>
+            <Text style={styles.placeholder}>{placeholder}</Text>
           )}
           <View style={styles.optionsContainer}>
             {options.map((option) => (
@@ -75,11 +115,15 @@ const RadioButtonInput = ({
               />
             ))}
           </View>
-          {error && <Text style={{ color: "red" }}>{error.message}</Text>}
+          {error && (
+            <View style={styles.errorContainer}>
+              <Text style={styles.errorText}>{error.message}</Text>
+            </View>
+          )}
         </View>
       )}
       name={name}
-      rules={{ required: required && "This field is required !" }}
+      rules={{ required: required && "This field is required" }}
     />
   );
 };
@@ -89,25 +133,74 @@ export default RadioButtonInput;
 const styles = StyleSheet.create({
   container: {
     width: "100%",
-    gap: 5,
+    gap: 8,
   },
   label: {
-    fontSize: 13,
-    fontWeight: "500",
+    fontSize: 14,
+    fontWeight: "600",
+    color: 'rgba(255,255,255,0.9)',
+    letterSpacing: 0.5,
+  },
+  required: {
+    color: '#ef4444',
+  },
+  placeholder: {
+    color: 'rgba(255,255,255,0.4)',
+    fontSize: 12,
+    marginTop: -4,
   },
   optionsContainer: {
     flexDirection: "row",
-    gap: 10,
-    marginTop: 5,
+    flexWrap: "wrap",
+    gap: 12,
+    marginTop: 4,
+  },
+  optionWrapper: {
+    borderRadius: 12,
+  },
+  unselectedOption: {
+    borderRadius: 12,
+    overflow: 'hidden',
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+  },
+  optionBlur: {
+    borderRadius: 12,
   },
   option: {
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "gray",
-    borderRadius: 10,
-    padding: 7,
+    paddingVertical: 10,
     paddingHorizontal: 20,
+    borderRadius: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  optionInner: {
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
   optionText: {
     fontSize: 14,
+    color: 'rgba(255,255,255,0.7)',
+    fontWeight: '500',
+  },
+  selectedText: {
+    color: 'white',
+    fontWeight: '600',
+  },
+  checkIcon: {
+    marginRight: -4,
+  },
+  errorContainer: {
+    marginTop: 4,
+    paddingHorizontal: 4,
+  },
+  errorText: {
+    color: '#ef4444',
+    fontSize: 12,
   },
 });

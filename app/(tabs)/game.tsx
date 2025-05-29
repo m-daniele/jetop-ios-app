@@ -9,6 +9,7 @@ import { Shuffle } from 'lucide-react-native';
 import { StyleSheet } from 'react-native';
 import { styles } from "styles/GameScreen.styles"; 
 import React from "react";
+import { Colors } from "react-native/Libraries/NewAppScreen";
 
 export default function GameScreen() {
   const { diceCount, setDiceCount } = useDiceStore();
@@ -105,7 +106,7 @@ export default function GameScreen() {
                   {results.map((value, index) => (
                     <View key={index} style={styles.diceCard}>
                       <LinearGradient
-                        colors={['#2193b0', '#6dd5ed']}
+                        colors={['#5000ce', '#6900a3']}
                         start={{ x: 0, y: 0 }}
                         end={{ x: 1, y: 1 }}
                         style={styles.diceGradient}

@@ -157,7 +157,7 @@ export default function TabLayout() {
     >
       
       <Tabs.Screen
-        name="events"
+        name="index"
         options={{
           tabBarIcon: ({ focused }) => (
             <CircularTabIcon focused={focused}>
@@ -202,7 +202,7 @@ export default function TabLayout() {
       /> 
       
       <Tabs.Screen
-        name="index"
+        name="profile"
         options={{
           tabBarIcon: ({ focused }) => (
             <CircularTabIcon focused={focused}>

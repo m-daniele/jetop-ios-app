@@ -10,6 +10,8 @@ import {
 } from "react-native";
 import * as Linking from "expo-linking";
 import React, { useState } from "react";
+import { LinearGradient } from 'expo-linear-gradient';
+import { BlurView } from 'expo-blur';
 
 const SocialLoginButton = ({
   strategy,
@@ -30,11 +32,11 @@ const SocialLoginButton = ({
   const { startOAuthFlow } = useOAuth({ strategy: getStrategy() });
   const { user } = useUser();
   const [isLoading, setIsLoading] = useState(false);
-
   const router = useRouter();
+
   const buttonText = () => {
     if (isLoading) {
-      return "Loading...";
+      return "Connecting...";
     }
 
     if (strategy === "facebook") {
@@ -48,12 +50,27 @@ const SocialLoginButton = ({
 
   const buttonIcon = () => {
     if (strategy === "facebook") {
-      return <Ionicons name="logo-facebook" size={24} color="#1977F3" />;
+      return <Ionicons name="logo-facebook" size={24} color="white" />;
     } else if (strategy === "google") {
       return <Ionicons name="logo-google" size={24} color="#DB4437" />;
     } else if (strategy === "apple") {
-      return <Ionicons name="logo-apple" size={24} color="black" />;
+      return <Ionicons name="logo-apple" size={24} color="white" />;
     }
+  };
+
+  const getButtonGradient = (): [string, string] => {
+    if (strategy === "facebook") {
+      return ['#1877F2', '#1865d4'];
+    } else if (strategy === "google") {
+      return ['#ffffff', '#f8f8f8'];
+    } else if (strategy === "apple") {
+      return ['#000000', '#1a1a1a'];
+    }
+    return ['#ffffff', '#f8f8f8'];
+  };
+
+  const getTextColor = () => {
+    return strategy === "google" ? '#333' : '#fff';
   };
 
   const onSocialLoginPress = React.useCallback(async () => {
@@ -63,18 +80,12 @@ const SocialLoginButton = ({
         redirectUrl: Linking.createURL("/dashboard", { scheme: "myapp" }),
       });
 
-      // If sign in was successful, set the active session
       if (createdSessionId) {
         console.log("Session created", createdSessionId);
         setActive!({ session: createdSessionId });
         await user?.reload();
-      } else {
-        // Use signIn or signUp returned from startOAuthFlow
-        // for next steps, such as MFA
       }
     } catch (err) {
-      // See https://clerk.com/docs/custom-flows/error-handling
-      // for more info on error handling
       console.error(JSON.stringify(err, null, 2));
     } finally {
       setIsLoading(false);
@@ -83,17 +94,33 @@ const SocialLoginButton = ({
 
   return (
     <TouchableOpacity
-      style={[styles.container]}
+      style={styles.container}
       onPress={onSocialLoginPress}
       disabled={isLoading}
+      activeOpacity={0.8}
     >
-      {isLoading ? (
-        <ActivityIndicator size="small" color="black" />
-      ) : (
-        buttonIcon()
-      )}
-      <Text style={styles.buttonText}>{buttonText()}</Text>
-      <View />
+      <LinearGradient
+        colors={getButtonGradient()}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 0 }}
+        style={styles.gradient}
+      >
+        <View style={styles.content}>
+          {isLoading ? (
+            <ActivityIndicator 
+              size="small" 
+              color={getTextColor()} 
+              style={styles.loader}
+            />
+          ) : (
+            buttonIcon()
+          )}
+          <Text style={[styles.buttonText, { color: getTextColor() }]}>
+            {buttonText()}
+          </Text>
+          <View style={styles.spacer} />
+        </View>
+      </LinearGradient>
     </TouchableOpacity>
   );
 };
@@ -103,17 +130,36 @@ export default SocialLoginButton;
 const styles = StyleSheet.create({
   container: {
     width: "100%",
-    borderColor: "gray",
-    borderWidth: StyleSheet.hairlineWidth,
-    padding: 10,
-    borderRadius: 10,
+    height: 54,
+    borderRadius: 16,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  gradient: {
+    flex: 1,
+  },
+  content: {
+    flex: 1,
     flexDirection: "row",
-    gap: 10,
-    justifyContent: "space-between",
     alignItems: "center",
+    paddingHorizontal: 20,
+  },
+  loader: {
+    width: 24,
+    height: 24,
   },
   buttonText: {
-    fontSize: 15,
-    fontWeight: "medium",
+    fontSize: 16,
+    fontWeight: "600",
+    flex: 1,
+    textAlign: 'center',
+    letterSpacing: 0.3,
+  },
+  spacer: {
+    width: 24,
   },
 });
