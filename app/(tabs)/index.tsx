@@ -139,6 +139,10 @@ export default function EventsScreen() {
   const handleRefresh = () => {
     setRefreshing(true);
     loadEvents();
+     // Pause for refresh animation
+      setTimeout(() => {
+        setRefreshing(false);
+      }, 1000);
   };
 
   const handleEventPress = (eventId: string) => {
