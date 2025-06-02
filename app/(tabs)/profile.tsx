@@ -1,14 +1,24 @@
+// app/(tabs)/profile.tsx
+import React, { useState } from 'react';
 import { SignedIn, useClerk } from "@clerk/clerk-expo";
-import { StyleSheet, Text, View, TouchableOpacity, Image, ScrollView, RefreshControl } from "react-native";
+import { StyleSheet, Text, View, TouchableOpacity, Image, ScrollView, RefreshControl, Alert } from "react-native";
 import { Stack, useRouter } from "expo-router";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from 'expo-linear-gradient';
-import { BlurView } from 'expo-blur';
 import { Mail, User, AtSign, LogOut, Camera } from 'lucide-react-native';
-import { useState } from 'react';
 import * as ImagePicker from 'expo-image-picker';
 import { useUser } from '@clerk/clerk-expo';
-import { Alert } from 'react-native';
+
+// Import common components
+import {
+  SafeGradientView,
+  HeaderSection,
+  BlurCard,
+  ActionButton,
+  IconButton
+} from '../../components/common';
+
+// Import theme
+import { theme } from 'theme/theme';
 
 const ProfileScreen = () => {
   const { signOut, user } = useClerk();
@@ -30,15 +40,12 @@ const ProfileScreen = () => {
   const onRefresh = async () => {
     setRefreshing(true);
     try {
-      // Ricarica i dati dell'utente da Clerk
       await user?.reload();
-      
-      // Piccola pausa per mostrare l'animazione di refresh
       setTimeout(() => {
         setRefreshing(false);
       }, 1000);
     } catch (error) {
-      console.error('Errore durante il refresh:', error);
+      console.error('Error during refresh:', error);
       setRefreshing(false);
     }
   };
@@ -50,7 +57,6 @@ const ProfileScreen = () => {
     }
 
     try {
-      // Request permission to access media library
       const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
       
       if (permissionResult.granted === false) {
@@ -58,13 +64,12 @@ const ProfileScreen = () => {
         return;
       }
 
-      // Launch image picker with base64 enabled
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: true,
-        aspect: [1, 1], // Square aspect ratio for profile pictures
+        aspect: [1, 1],
         quality: 0.8,
-        base64: true, // Enable base64 encoding
+        base64: true,
       });
 
       if (!result.canceled && result.assets[0]) {
@@ -75,15 +80,10 @@ const ProfileScreen = () => {
           return;
         }
         
-        // Create base64 data URL with proper format
         const base64Image = `data:image/jpeg;base64,${asset.base64}`;
-        
-        // Update user profile image via Clerk with base64
         await user.setProfileImage({ file: base64Image });
         
         Alert.alert('Success', 'Profile image updated successfully!');
-        
-        // Ricarica automaticamente i dati dopo l'aggiornamento dell'immagine
         await user.reload();
       }
     } catch (error) {
@@ -100,182 +100,167 @@ const ProfileScreen = () => {
   };
 
   return (
-    <LinearGradient
-      colors={['#0F0C29', '#302B63', '#24243e']}
-      style={styles.gradient}
-    >
-      <SafeAreaView style={styles.container}>
-        <ScrollView 
-          contentContainerStyle={styles.scrollContent}
-          showsVerticalScrollIndicator={false}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={onRefresh}
-              tintColor="#fff" 
-            />
-          }
-        >
-          <SignedIn>
-            {/* Header Section */}
-            <View style={styles.headerSection}>
-              <Text style={styles.title}>Profile</Text>
-              <Text style={styles.subtitle}>Manage your account</Text>
-            </View>
+    <SafeGradientView>
+      <ScrollView 
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor="#fff" 
+          />
+        }
+      >
+        <SignedIn>
+          {/* Header - More compact */}
+          <View style={styles.headerSection}>
+            <Text style={styles.title}>Profile</Text>
+            <Text style={styles.subtitle}>Manage your account</Text>
+          </View>
 
-            {/* Profile Picture Section */}
-            <View style={styles.profilePictureSection}>
-              <View style={styles.profilePictureContainer}>
-                {user?.imageUrl ? (
-                  <Image 
-                    source={{ uri: user.imageUrl }} 
-                    style={styles.profileImage}
-                  />
-                ) : (
-                  <LinearGradient
-                    colors={['#a855f7', '#9333ea']}
-                    style={styles.profileImagePlaceholder}
-                  >
-                    <Text style={styles.initials}>{getInitials()}</Text>
-                  </LinearGradient>
-                )}
-                
-                {/* Camera overlay for changing picture */}
-                <TouchableOpacity style={styles.cameraButton} onPress={handleProfileEdit}>
-                  <BlurView intensity={50} tint="dark" style={styles.cameraBlur}>
-                    <Camera color="white" size={20} />
-                  </BlurView>
-                </TouchableOpacity>
-              </View>
-              
-              <Text style={styles.userName}>{user?.fullName || 'User'}</Text>
-              <Text style={styles.userUsername}>@{user?.username || 'username'}</Text>
-            </View>
-
-            {/* Info Cards */}
-            <View style={styles.infoSection}>
-              {/* Email Card */}
-              <BlurView intensity={20} tint="dark" style={styles.infoCard}>
-                <View style={styles.infoCardContent}>
-                  <View style={styles.iconContainer}>
-                    <Mail color="rgba(255,255,255,0.8)" size={20} />
-                  </View>
-                  <View style={styles.infoTextContainer}>
-                    <Text style={styles.infoLabel}>Email</Text>
-                    <Text style={styles.infoValue}>
-                      {user?.emailAddresses[0]?.emailAddress}
-                    </Text>
-                  </View>
-                </View>
-              </BlurView>
-
-              {/* Full Name Card */}
-              <BlurView intensity={20} tint="dark" style={styles.infoCard}>
-                <View style={styles.infoCardContent}>
-                  <View style={styles.iconContainer}>
-                    <User color="rgba(255,255,255,0.8)" size={20} />
-                  </View>
-                  <View style={styles.infoTextContainer}>
-                    <Text style={styles.infoLabel}>Full Name</Text>
-                    <Text style={styles.infoValue}>
-                      {user?.fullName || 'Not set'}
-                    </Text>
-                  </View>
-                </View>
-              </BlurView>
-
-              {/* Username Card */}
-              <BlurView intensity={20} tint="dark" style={styles.infoCard}>
-                <View style={styles.infoCardContent}>
-                  <View style={styles.iconContainer}>
-                    <AtSign color="rgba(255,255,255,0.8)" size={20} />
-                  </View>
-                  <View style={styles.infoTextContainer}>
-                    <Text style={styles.infoLabel}>Username</Text>
-                    <Text style={styles.infoValue}>
-                      {user?.username || 'Not set'}
-                    </Text>
-                  </View>
-                </View>
-              </BlurView>
-            </View>
-
-            {/* Logout Button */}
-            <View style={styles.logoutSection}>
-              <TouchableOpacity
-                onPress={handleLogout}
-                disabled={isLoggingOut}
-                activeOpacity={0.8}
-              >
+          {/* Profile Picture Section - Maintained size */}
+          <View style={styles.profilePictureSection}>
+            <View style={styles.profilePictureContainer}>
+              {user?.imageUrl ? (
+                <Image 
+                  source={{ uri: user.imageUrl }} 
+                  style={styles.profileImage}
+                />
+              ) : (
                 <LinearGradient
-                  colors={['#dc2626', '#b91c1c']}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  style={styles.logoutButton}
+                  colors={[...theme.colors.primary.gradient]}
+                  style={styles.profileImagePlaceholder}
                 >
-                  <LogOut color="white" size={20} />
-                  <Text style={styles.logoutText}>
-                    {isLoggingOut ? 'Logging out...' : 'Logout'}
-                  </Text>
+                  <Text style={styles.initials}>{getInitials()}</Text>
                 </LinearGradient>
+              )}
+              
+              {/* Camera overlay */}
+              <TouchableOpacity style={styles.cameraButton} onPress={handleProfileEdit}>
+                <IconButton
+                  icon={Camera}
+                  onPress={handleProfileEdit}
+                  size={28}
+                  iconSize={16}
+                  blur={true}
+                  style={styles.cameraIconButton}
+                />
               </TouchableOpacity>
             </View>
+            
+            <Text style={styles.userName}>{user?.fullName || 'User'}</Text>
+            <Text style={styles.userUsername}>@{user?.username || 'username'}</Text>
+          </View>
 
-            {/* Footer */}
-            <Text style={styles.footerText}>
-              Member since {new Date(user?.createdAt || Date.now()).getFullYear()}
-            </Text>
-          </SignedIn>
-        </ScrollView>
-      </SafeAreaView>
-    </LinearGradient>
+          {/* Info Cards - Using BlurCard */}
+          <View style={styles.infoSection}>
+            {/* Email Card */}
+            <BlurCard style={styles.infoCard}>
+              <View style={styles.infoCardContent}>
+                <View style={styles.iconContainer}>
+                  <Mail color={theme.colors.text.secondary} size={20} />
+                </View>
+                <View style={styles.infoTextContainer}>
+                  <Text style={styles.infoLabel}>Email</Text>
+                  <Text style={styles.infoValue}>
+                    {user?.emailAddresses[0]?.emailAddress}
+                  </Text>
+                </View>
+              </View>
+            </BlurCard>
+
+            {/* Full Name Card */}
+            <BlurCard style={styles.infoCard}>
+              <View style={styles.infoCardContent}>
+                <View style={styles.iconContainer}>
+                  <User color={theme.colors.text.secondary} size={20} />
+                </View>
+                <View style={styles.infoTextContainer}>
+                  <Text style={styles.infoLabel}>Full Name</Text>
+                  <Text style={styles.infoValue}>
+                    {user?.fullName || 'Not set'}
+                  </Text>
+                </View>
+              </View>
+            </BlurCard>
+
+            {/* Username Card */}
+            <BlurCard style={styles.infoCard}>
+              <View style={styles.infoCardContent}>
+                <View style={styles.iconContainer}>
+                  <AtSign color={theme.colors.text.secondary} size={20} />
+                </View>
+                <View style={styles.infoTextContainer}>
+                  <Text style={styles.infoLabel}>Username</Text>
+                  <Text style={styles.infoValue}>
+                    {user?.username || 'Not set'}
+                  </Text>
+                </View>
+              </View>
+            </BlurCard>
+          </View>
+
+          {/* Logout Button */}
+          <View style={styles.logoutSection}>
+            <ActionButton
+              title={isLoggingOut ? 'Logging out...' : 'Logout'}
+              onPress={handleLogout}
+              icon={LogOut}
+              loading={isLoggingOut}
+              disabled={isLoggingOut}
+              variant="danger"
+            />
+          </View>
+
+          {/* Footer */}
+          <Text style={styles.footerText}>
+            Member since {new Date(user?.createdAt || Date.now()).getFullYear()}
+          </Text>
+        </SignedIn>
+      </ScrollView>
+    </SafeGradientView>
   );
 };
 
 export default ProfileScreen;
 
 const styles = StyleSheet.create({
-  gradient: {
-    flex: 1,
-  },
-  container: {
-    flex: 1,
-  },
   scrollContent: {
-    padding: 16,
-    paddingTop: 20,
+    padding: theme.spacing.md,
+    paddingTop: theme.spacing.lg,
   },
   headerSection: {
     alignItems: 'center',
-    marginBottom: 20,
+    marginBottom: theme.spacing.lg,
   },
   title: {
-    fontSize: 28,
-    fontWeight: '800',
-    color: '#fff',
-    marginBottom: 4,
-    marginTop: 30,
-    letterSpacing: -0.5,
+    fontSize: theme.typography.fontSize['4xl'],
+    fontWeight: theme.typography.fontWeight.extrabold,
+    color: theme.colors.text.primary,
+    marginBottom: theme.spacing.xs,
+    marginTop: theme.spacing.xxl,
+    letterSpacing: theme.typography.letterSpacing.tight,
   },
   subtitle: {
-    fontSize: 18,
-    color: 'rgba(255,255,255,0.7)',
-    letterSpacing: 0.5,
+    fontSize: theme.typography.fontSize.md,
+    color: theme.colors.text.secondary,
+    letterSpacing: theme.typography.letterSpacing.wide,
   },
   profilePictureSection: {
     alignItems: 'center',
-    marginBottom: 24,
+    marginBottom: theme.spacing.xl,
   },
   profilePictureContainer: {
     position: 'relative',
-    marginBottom: 12,
+    marginBottom: theme.spacing.sm,
   },
   profileImage: {
     width: 120,
     height: 120,
     borderRadius: 60,
-    borderWidth: 2,
-    borderColor: 'rgba(255,255,255,0.2)',
+    borderWidth: 3,
+    borderColor: theme.colors.ui.border,
   },
   profileImagePlaceholder: {
     width: 90,
@@ -284,63 +269,52 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 2,
-    borderColor: 'rgba(255,255,255,0.2)',
+    borderColor: theme.colors.ui.border,
   },
   initials: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: '#fff',
+    fontSize: theme.typography.fontSize['2xl'],
+    fontWeight: theme.typography.fontWeight.bold,
+    color: theme.colors.text.primary,
   },
   cameraButton: {
     position: 'absolute',
-    bottom: -2,
-    right: -2,
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    overflow: 'hidden',
+    bottom: 1,
+    right: 1,
   },
-  cameraBlur: {
-    width: '100%',
-    height: '100%',
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: 'rgba(168,85,247,0.3)',
+  cameraIconButton: {
+    backgroundColor: theme.colors.primary.purple,
   },
   userName: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#fff',
+    fontSize: theme.typography.fontSize['2xl'],
+    fontWeight: theme.typography.fontWeight.bold,
+    color: theme.colors.text.primary,
     marginBottom: 2,
   },
   userUsername: {
-    fontSize: 14,
-    color: 'rgba(255,255,255,0.6)',
+    fontSize: theme.typography.fontSize.base,
+    color: theme.colors.text.secondary,
   },
   infoSection: {
-    gap: 14,
-    marginBottom: 24,
+    gap: theme.spacing.md,
+    marginBottom: theme.spacing.xl,
+    paddingHorizontal: theme.spacing.lg,
   },
   infoCard: {
-    borderRadius: 16,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
-    marginLeft:20,
-    marginRight:20,
+    borderRadius: theme.borderRadius.lg,
+    marginHorizontal: 0,
   },
   infoCardContent: {
-    backgroundColor: 'rgba(255,255,255,0.05)',
-    padding: 16,
+    backgroundColor: theme.colors.ui.cardBg,
+    padding: theme.spacing.md,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: theme.spacing.sm,
   },
   iconContainer: {
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: 'rgba(255,255,255,0.1)',
+    backgroundColor: theme.colors.ui.border,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -348,45 +322,27 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   infoLabel: {
-    fontSize: 11,
-    color: 'rgba(255,255,255,0.5)',
+    fontSize: theme.typography.fontSize.xs,
+    color: theme.colors.text.muted,
     marginBottom: 2,
     textTransform: 'uppercase',
-    letterSpacing: 1,
+    letterSpacing: theme.typography.letterSpacing.wider,
   },
   infoValue: {
-    fontSize: 15,
-    color: '#fff',
-    fontWeight: '500',
+    fontSize: theme.typography.fontSize.base,
+    color: theme.colors.text.primary,
+    fontWeight: theme.typography.fontWeight.medium,
   },
   logoutSection: {
     alignItems: 'center',
-    marginBottom: 24,
-  },
-  logoutButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    borderRadius: 24,
-    shadowColor: '#dc2626',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 6,
-  },
-  logoutText: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#fff',
-    letterSpacing: 0.5,
+    marginBottom: theme.spacing.xs,
   },
   footerText: {
-    fontSize: 11,
-    color: 'rgba(255,255,255,0.4)',
+    fontSize: theme.typography.fontSize.xs,
+    color: theme.colors.text.disabled,
     textAlign: 'center',
-    letterSpacing: 0.5,
-    marginBottom: 20,
+    letterSpacing: theme.typography.letterSpacing.wide,
+    marginBottom: theme.spacing.sm,
+    marginTop: theme.spacing.sm,
   },
 });

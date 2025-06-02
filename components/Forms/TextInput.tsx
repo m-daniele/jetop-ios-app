@@ -9,12 +9,14 @@ const TextInput = ({
   required,
   label,
   name,
+  keyboardAppearance,
 }: {
   control: any;
   placeholder?: string;
   required?: boolean;
   label: string;
   name: string;
+  keyboardAppearance?: 'default' | 'light' | 'dark';
 }) => {
   return (
     <Controller
@@ -31,6 +33,7 @@ const TextInput = ({
             onChangeText={onChange}
             value={value}
             placeholder={placeholder}
+            keyboardAppearance={keyboardAppearance}
             placeholderTextColor="rgba(255,255,255,0.4)"
           />
           {error && <Text style={styles.errorText}>{error.message}</Text>}

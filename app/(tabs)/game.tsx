@@ -1,15 +1,33 @@
-import { useState } from "react";
-import { ScrollView, Text, TextInput, TouchableWithoutFeedback, Keyboard, View, TouchableOpacity, Animated } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
-import { LinearGradient } from 'expo-linear-gradient';
-import { BlurView } from 'expo-blur';
-import { useDiceStore } from "store/dice";
-import { rollDice } from "utils/rollDice";
+// app/(tabs)/game.tsx
+import React, { useState } from "react";
+import { 
+  Text, 
+  TextInput, 
+  TouchableWithoutFeedback, 
+  Keyboard, 
+  View, 
+  Animated,
+  StyleSheet,
+  ScrollView
+} from "react-native";
 import { Shuffle } from 'lucide-react-native';
-import { StyleSheet } from 'react-native';
-import { styles } from "styles/GameScreen.styles"; 
-import React from "react";
-import { Colors } from "react-native/Libraries/NewAppScreen";
+import { LinearGradient } from 'expo-linear-gradient';
+
+// Import common components
+import {
+  SafeGradientView,
+  HeaderSection,
+  BlurCard,
+  ActionButton,
+  FormInput
+} from '../../components/common';
+
+// Import theme
+import { theme } from 'theme/theme';
+
+// Store and utils
+import { useDiceStore } from "../../store/dice";
+import { rollDice } from "../../utils/rollDice";
 
 export default function GameScreen() {
   const { diceCount, setDiceCount } = useDiceStore();
@@ -18,6 +36,8 @@ export default function GameScreen() {
   const fadeAnim = useState(new Animated.Value(0))[0];
 
   const handleRoll = () => {
+    if (diceCount === 0) return;
+    
     setIsRolling(true);
     
     // Fade out animation
@@ -45,54 +65,65 @@ export default function GameScreen() {
     return diceEmojis[value - 1] || '🎲';
   };
 
+  const handleInputChange = (text: string) => {
+    if (text === '') {
+      setDiceCount(0);
+    } else {
+      const num = parseInt(text);
+      if (!isNaN(num) && num >= 0 && num <= 99) {
+        setDiceCount(num);
+      }
+    }
+  };
+
   return (
     <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-      <LinearGradient
-        colors={['#0F0C29', '#302B63', '#24243e']}
-        style={styles.gradient}
-      >
-        <SafeAreaView style={styles.container}>
-          <ScrollView 
-            contentContainerStyle={styles.scrollContent}
-            showsVerticalScrollIndicator={false}
-            keyboardShouldPersistTaps="handled"
-            bounces={true}
-            scrollEnabled={true}
-          >
-            {/* Header Section */}
-            <View style={styles.headerSection}>
-              <Text style={styles.title}>Dice Roller</Text>
-              <Text style={styles.subtitle}>
-                Roll the dice and test your luck! 🎲{'\n'}
-                Enter how many dice to roll
-              </Text>
-            </View>
+      <SafeGradientView>
+        <ScrollView 
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          bounces={true}
+        >
+          <View style={styles.content}>
+            {/* Header */}
+            <HeaderSection
+              title="Dice Roller"
+              subtitle={`Roll the dice and test your luck! 🎲\nEnter how many dice to roll`}
+            />
 
             {/* Input Section */}
             <View style={styles.inputSection}>
-              <BlurView intensity={20} tint="dark" style={styles.inputBlurContainer}>
-                <TextInput
-                  style={styles.input}
-                  keyboardType="numeric"
-                  value={diceCount === 0 ? '' : diceCount.toString()}
-                  onChangeText={(text) => {
-                    if (text === '') {
-                      setDiceCount(0);
-                    } else {
-                      const num = parseInt(text);
-                      if (!isNaN(num) && num >= 0 && num <= 99) {
-                        setDiceCount(num);
-                      }
-                    }
-                  }}
-                  onSubmitEditing={Keyboard.dismiss}
-                  maxLength={2}
-                  placeholder="1"
-                  placeholderTextColor="rgba(255,255,255,0.4)"
-                />
-              </BlurView>
+              <FormInput 
+                label="Number of Dice" 
+                required
+                error={diceCount === 0 && results.length > 0 ? "Please enter at least 1 die" : undefined}
+              > 
+                <BlurCard style={styles.inputCard}>
+                  <TextInput
+                    style={styles.input}
+                    keyboardType="numeric"
+                    keyboardAppearance="dark"
+                    value={diceCount === 0 ? '' : diceCount.toString()}
+                    onChangeText={handleInputChange}
+                    onSubmitEditing={Keyboard.dismiss}
+                    maxLength={2}
+                    placeholder="1"
+                    placeholderTextColor={theme.colors.text.disabled}
+                  />
+                </BlurCard>
+              </FormInput>
               
-              <RollButton onPress={handleRoll} loading={isRolling} />
+              <View style={styles.buttonContainer}>
+                <ActionButton
+                  title={isRolling ? 'Rolling...' : 'Roll Dice'}
+                  onPress={handleRoll}
+                  icon={Shuffle}
+                  loading={isRolling}
+                  disabled={diceCount === 0}
+                  variant="primary"
+                />
+              </View>
             </View>
 
             {/* Results Section */}
@@ -104,9 +135,9 @@ export default function GameScreen() {
                 
                 <View style={styles.diceGrid}>
                   {results.map((value, index) => (
-                    <View key={index} style={styles.diceCard}>
+                    <BlurCard key={index} style={styles.diceCard}>
                       <LinearGradient
-                        colors={['#5000ce', '#6900a3']}
+                        colors={[...theme.colors.primary.gradient]}
                         start={{ x: 0, y: 0 }}
                         end={{ x: 1, y: 1 }}
                         style={styles.diceGradient}
@@ -114,17 +145,17 @@ export default function GameScreen() {
                         <Text style={styles.diceEmoji}>{getDiceEmoji(value)}</Text>
                         <Text style={styles.diceValue}>{value}</Text>
                       </LinearGradient>
-                    </View>
+                    </BlurCard>
                   ))}
                 </View>
 
                 {/* Total Score */}
                 {results.length > 1 && (
-                  <View style={styles.totalSection}>
+                  <BlurCard style={styles.totalCard}>
                     <Text style={styles.totalText}>
                       Total: {results.reduce((a, b) => a + b, 0)}
                     </Text>
-                  </View>
+                  </BlurCard>
                 )}
               </Animated.View>
             )}
@@ -133,80 +164,92 @@ export default function GameScreen() {
             <Text style={styles.footerText}>
               May the odds be in your favor
             </Text>
-          </ScrollView>
-        </SafeAreaView>
-      </LinearGradient>
+          </View>
+        </ScrollView>
+      </SafeGradientView>
     </TouchableWithoutFeedback>
   );
 }
 
-// Roll Button Component
-const RollButton = ({ onPress, loading }: { onPress: () => void; loading: boolean }) => {
-  const [isPressed, setIsPressed] = useState(false);
-  const scaleAnim = useState(new Animated.Value(1))[0];
-  const rotateAnim = useState(new Animated.Value(0))[0];
-
-  React.useEffect(() => {
-    if (loading) {
-      Animated.loop(
-        Animated.timing(rotateAnim, {
-          toValue: 1,
-          duration: 1000,
-          useNativeDriver: true,
-        })
-      ).start();
-    } else {
-      rotateAnim.setValue(0);
-    }
-  }, [loading]);
-
-  const handlePressIn = () => {
-    setIsPressed(true);
-    Animated.spring(scaleAnim, {
-      toValue: 0.95,
-      useNativeDriver: true,
-    }).start();
-  };
-
-  const handlePressOut = () => {
-    setIsPressed(false);
-    Animated.spring(scaleAnim, {
-      toValue: 1,
-      friction: 3,
-      tension: 40,
-      useNativeDriver: true,
-    }).start();
-  };
-
-  const spin = rotateAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: ['0deg', '360deg'],
-  });
-
-  return (
-    <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
-      <TouchableOpacity
-        onPress={onPress}
-        onPressIn={handlePressIn}
-        onPressOut={handlePressOut}
-        disabled={loading}
-        activeOpacity={1}
-      >
-        <LinearGradient
-          colors={isPressed ? ['#9333ea', '#7e22ce'] : ['#a855f7', '#9333ea']}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.rollButton}
-        >
-          <Animated.View style={{ transform: [{ rotate: loading ? spin : '0deg' }] }}>
-            <Shuffle color="white" size={24} />
-          </Animated.View>
-          <Text style={styles.buttonText}>
-            {loading ? 'Rolling...' : 'Roll Dice'}
-          </Text>
-        </LinearGradient>
-      </TouchableOpacity>
-    </Animated.View>
-  );
-};
-
+const styles = StyleSheet.create({
+  scrollContent: {
+    flexGrow: 1,
+  },
+  content: {
+    flex: 1,
+    padding: theme.spacing.lg,
+  },
+  inputSection: {
+    marginBottom: theme.spacing.xl,
+        marginLeft: theme.spacing.xxxl,
+    marginRight: theme.spacing.xxxl,  
+  },
+  inputCard: {
+    padding: 0,
+    borderRadius: theme.borderRadius.lg,
+  },
+  input: {
+    padding: theme.spacing.md,
+    fontSize: theme.typography.fontSize.md,
+    color: theme.colors.text.primary,
+    textAlign: 'center',
+  },
+  buttonContainer: {
+    alignItems: 'center',
+    marginTop: theme.spacing.sm,
+  },
+  resultsSection: {
+    marginTop: theme.spacing.xs,
+  },
+  resultsTitle: {
+    fontSize: theme.typography.fontSize.lg,
+    fontWeight: theme.typography.fontWeight.semibold,
+    color: theme.colors.text.primary,
+    textAlign: 'center',
+    marginBottom: theme.spacing.md,
+  },
+  diceGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    gap: theme.spacing.sm,
+  },
+  diceCard: {
+    padding: 0,
+    borderRadius: theme.borderRadius.md, 
+    overflow: 'hidden',
+  },
+  diceGradient: {
+    padding: theme.spacing.sm, 
+    alignItems: 'center',
+    minWidth: 70,
+  },
+  diceEmoji: {
+    fontSize: 34, 
+    marginBottom: theme.spacing.xs,
+    color: theme.colors.text.primary,
+  },
+  diceValue: {
+    fontSize: theme.typography.fontSize.md, 
+    fontWeight: theme.typography.fontWeight.bold,
+    color: theme.colors.text.primary,
+  },
+  totalCard: {
+    marginTop: theme.spacing.lg,
+    alignSelf: 'center',
+    paddingHorizontal: theme.spacing.xl,
+    paddingVertical: theme.spacing.md,
+  },
+  totalText: {
+    fontSize: theme.typography.fontSize.xl,
+    fontWeight: theme.typography.fontWeight.bold,
+    color: theme.colors.text.primary,
+  },
+  footerText: {
+    fontSize: theme.typography.fontSize.xs,
+    color: theme.colors.text.disabled,
+    textAlign: 'center',
+    marginTop: theme.spacing.xl,
+    letterSpacing: theme.typography.letterSpacing.wide,
+  },
+});

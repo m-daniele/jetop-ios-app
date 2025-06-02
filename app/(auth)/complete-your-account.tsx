@@ -1,31 +1,40 @@
+// app/(auth)/complete-your-account.tsx
 import React, { useEffect, useState } from "react";
 import {
-  ActivityIndicator,
   StyleSheet,
   Text,
-  TouchableOpacity,
   View,
   Animated,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
 } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useForm } from "react-hook-form";
 import { useRouter } from "expo-router";
 import { useUser } from "@clerk/clerk-expo";
 import { LinearGradient } from 'expo-linear-gradient';
-import { BlurView } from 'expo-blur';
-import { UserCircle, Sparkles } from 'lucide-react-native';
+import { Sparkles } from 'lucide-react-native';
 
-import TextInput from "components/forms/TextInput";
-import RadioButtonInput from "components/forms/RadioButtonInput";
+// Import common components
+import {
+  GradientBackground,
+  HeaderSection,
+  BlurCard,
+  ActionButton,
+  ProgressBar
+} from '../../components/common';
+
+// Import form components
+import TextInput from "../../components/forms/TextInput";
+import RadioButtonInput from "../../components/forms/RadioButtonInput";
+
+// Import theme
+import { theme } from 'theme/theme';
 
 const CompleteYourAccountScreen = () => {
   const { user, isLoaded } = useUser();
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
-  const insets = useSafeAreaInsets();
 
   // Animations
   const fadeAnim = React.useRef(new Animated.Value(0)).current;
@@ -93,39 +102,30 @@ const CompleteYourAccountScreen = () => {
   }, [isLoaded, user]);
 
   return (
-    <LinearGradient
-      colors={['#0F0C29', '#302B63', '#24243e']}
-      style={styles.gradient}
-    >
+    <GradientBackground>
       <KeyboardAvoidingView 
         style={styles.keyboardView}
         behavior={Platform.OS === "ios" ? "padding" : "height"}
       >
         <ScrollView 
-          contentContainerStyle={[
-            styles.scrollContent,
-            { paddingBottom: insets.bottom + 20 },
-          ]}
+          contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
+   
         >
           <View style={styles.container}>
             
-            {/* Heading Section */}
+            {/* Header */}
             <Animated.View 
-              style={[
-                styles.headingContainer,
-                {
-                  opacity: fadeAnim,
-                  transform: [{ translateY: slideAnim }],
-                },
-              ]}
+              style={{
+                opacity: fadeAnim,
+                transform: [{ translateY: slideAnim }],
+              }}
             >
-              <Text style={styles.title}>Complete Your Profile</Text>
-              <Text style={styles.subtitle}>
-                Just a few more details to start{'\n'}
-                your JEurs journey worldwide!
-              </Text>
+              <HeaderSection
+                title="Complete Your Profile"
+                subtitle={`Just a few more details to start\nyour JEurs journey worldwide!`}
+              />
             </Animated.View>
 
             {/* Form Section */}
@@ -138,22 +138,23 @@ const CompleteYourAccountScreen = () => {
                 },
               ]}
             >
-              <BlurView intensity={20} tint="dark" style={styles.formBlur}>
+              <BlurCard style={styles.formCard}>
                 <View style={styles.formWrapper}>
                   <TextInput
                     control={control}
                     placeholder="Enter your full name"
                     label="Full Name"
-                    required
-                    name="full_name"            
-                     />
+                    name="full_name"
+                    required={true}
+                    keyboardAppearance="dark"
+                  />
 
                   <RadioButtonInput
                     control={control}
                     placeholder="Select your gender below."
                     label="Gender"
-                    required
                     name="gender"
+                    required
                     options={[
                       { label: "Male", value: "male" },
                       { label: "Female", value: "female" },
@@ -161,31 +162,19 @@ const CompleteYourAccountScreen = () => {
                     ]}
                   />
                 </View>
-              </BlurView>
+              </BlurCard>
 
               {/* Submit Button */}
-              <TouchableOpacity
-                onPress={handleSubmit(onSubmit)}
-                disabled={isLoading}
-                activeOpacity={0.8}
-                style={styles.submitButtonContainer}
-              >
-                <LinearGradient
-                  colors={isLoading ? ['#6b7280', '#4b5563'] : ['#a855f7', '#9333ea']}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  style={styles.submitButton}
-                >
-                  {isLoading ? (
-                    <ActivityIndicator size="small" color="white" />
-                  ) : (
-                    <Sparkles color="white" size={18} />
-                  )}
-                  <Text style={styles.submitButtonText}>
-                    {isLoading ? 'Completing...' : 'Complete Profile'}
-                  </Text>
-                </LinearGradient>
-              </TouchableOpacity>
+              <View style={styles.submitButtonContainer}>
+                <ActionButton
+                  title={isLoading ? 'Completing...' : 'Complete Profile'}
+                  onPress={handleSubmit(onSubmit)}
+                  icon={Sparkles}
+                  loading={isLoading}
+                  disabled={isLoading}
+                  variant="primary"
+                />
+              </View>
             </Animated.View>
 
             {/* Progress Indicator */}
@@ -195,115 +184,60 @@ const CompleteYourAccountScreen = () => {
                 { opacity: fadeAnim },
               ]}
             >
-              <View style={styles.progressBar}>
-                <LinearGradient
-                  colors={['#a855f7', '#9333ea']}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 0 }}
-                  style={styles.progressFill}
-                />
-              </View>
+              <ProgressBar 
+                percentage={75} 
+                colors={[...theme.colors.primary.gradient]}
+              />
               <Text style={styles.progressText}>Almost there!</Text>
             </Animated.View>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
-    </LinearGradient>
+    </GradientBackground>
   );
 };
 
 export default CompleteYourAccountScreen;
 
 const styles = StyleSheet.create({
-  gradient: {
-    flex: 1,
-  },
   keyboardView: {
     flex: 1,
   },
   scrollContent: {
     flexGrow: 1,
+    paddingBottom: theme.spacing.lg,
   },
   container: {
     flex: 1,
-    padding: 20,
+    padding: theme.spacing.lg,
     justifyContent: 'center',
     minHeight: '100%',
-    marginTop:25,
-  },
-  headingContainer: {
-    alignItems: 'center',
-    marginBottom: 40,
-  },
-  title: {
-    fontSize: 32,
-    fontWeight: '800',
-    color: '#fff',
-    marginBottom: 12,
-    letterSpacing: -0.5,
-  },
-  subtitle: {
-    fontSize: 17,
-    color: 'rgba(255,255,255,0.7)',
-    textAlign: 'center',
-    lineHeight: 24,
+    marginTop: theme.spacing.lg,
   },
   formContainer: {
     width: '100%',
   },
-  formBlur: {
-    borderRadius: 20,
+  formCard: {
+    borderRadius: theme.borderRadius.xl,
     overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
   },
   formWrapper: {
-    backgroundColor: 'rgba(255,255,255,0.03)',
-    padding: 24,
-    gap: 20,
+    padding: theme.spacing.lg, 
+    gap: theme.spacing.sm, 
   },
   submitButtonContainer: {
-    marginTop: 30,
+    marginTop: theme.spacing.lg, 
     alignItems: 'center',
-  },
-  submitButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    paddingVertical: 18,
-    paddingHorizontal: 20,
-    borderRadius: 30,
-    shadowColor: '#a855f7',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.4,
-    shadowRadius: 16,
-    elevation: 8,
-  },
-  submitButtonText: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: 'white',
-    letterSpacing: 0.5,
   },
   progressContainer: {
-    marginTop: 40,
+    marginTop: theme.spacing.xxl, 
     alignItems: 'center',
-    gap: 12,
-  },
-  progressBar: {
-    width: 200,
-    height: 6,
-    backgroundColor: 'rgba(255,255,255,0.1)',
-    borderRadius: 3,
-    overflow: 'hidden',
-  },
-  progressFill: {
-    width: '75%',
-    height: '100%',
+    gap: theme.spacing.xs, 
+    paddingHorizontal: theme.spacing.xxxl,
   },
   progressText: {
-    fontSize: 14,
-    color: 'rgba(255,255,255,0.5)',
-    letterSpacing: 0.5,
+    fontSize: theme.typography.fontSize.sm,
+    color: theme.colors.text.muted,
+    letterSpacing: theme.typography.letterSpacing.wide,
   },
 });

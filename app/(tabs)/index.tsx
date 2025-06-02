@@ -9,6 +9,7 @@ import { router, Stack } from 'expo-router';
 import { useUser } from "@clerk/clerk-expo";
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Calendar, MapPin, Users, Plus, Sparkles } from 'lucide-react-native';
+import { getDisplayAddress } from 'utils/getDisplayAddress';
 
 interface EventItemProps {
   event: Event;
@@ -77,7 +78,7 @@ const EventItem: React.FC<EventItemProps> = ({ event, userId, onPress }) => {
               <View style={styles.detailRow}>
                 <MapPin size={12} color="rgba(255,255,255,0.5)" />
                 <Text style={styles.detailText} numberOfLines={1}>
-                  {event.location.split(',')[0]}
+                  {getDisplayAddress(event.location).split(',')[0]}
                 </Text>
               </View>
             )}

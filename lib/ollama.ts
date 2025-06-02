@@ -1,7 +1,7 @@
 export async function generateNicknames(prompt: string): Promise<string[]> {
   try {
     // Replace with your actual IP address
-    const res = await fetch("http://192.168.1.56:3001/nickname", {
+    const res = await fetch("http://192.168.1.58:3001/nickname", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ prompt }),
