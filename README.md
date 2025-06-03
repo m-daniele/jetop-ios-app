@@ -1,188 +1,312 @@
-# JEToP Mobile App
+# JEToP app
 
-A React Native application built with Expo Router implementing event management, gaming functionality, and AI-powered nickname generation with comprehensive authentication and database integration.
+[![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)](https://github.com/yourusername/jetop-ios-app)
+[![iOS](https://img.shields.io/badge/iOS-14.0+-green.svg)](https://developer.apple.com/ios/)
+[![React Native](https://img.shields.io/badge/React%20Native-0.79.2-61DAFB.svg)](https://reactnative.dev/)
 
-## Features
+Event management platform for JEurs university team challenge - **iOS Only**
 
-**Event Management**
-- Browse and book upcoming events
-- Create events with date/time selection
-- QR code generation for bookings
-- Real-time availability tracking
+## 📑 Table of Contents
 
-**Gaming**
-- Configurable dice rolling game
-- State persistence across sessions
+- [🚀 Quick Start](#-quick-start)
+- [Overview](#overview)
+  - [Features](#features)
+  - [Tech Stack](#tech-stack)
+- [Getting Started](#getting-started)
+  - [Requirements](#requirements)
+  - [Environment Setup](#environment-setup)
+  - [Database Setup](#database-setup)
+- [Development](#development)
+  - [Running the App](#running-the-app)
+  - [Project Structure](#project-structure)
+  - [Key Components](#key-components)
+- [Testing](#testing)
+- [Deployment](#deployment)
+  - [Build for iOS](#build-for-ios)
+  - [App Configuration](#app-configuration)
+- [Troubleshooting](#troubleshooting)
+  - [Common Issues](#common-issues)
+  - [Debug Database Connection](#debug-database-connection)
+- [Contributing](#contributing)
+  - [Code Style](#code-style)
+- [Team & Challenge Info](#team--challenge-info)
 
-**AI Integration**
-- Nickname generation using Ollama
-- Direct username integration
+---
 
-**User Management**
-- Social authentication (Google, Facebook, Apple)
-- Profile completion workflow
-- Secure user data handling
+## 🚀 Quick Start
 
-## Tech Stack
+```bash
+# Clone and install
+git clone https://github.com/yourusername/jetop-ios-app.git
+cd jetop-ios-app
+npm install
 
-- **Frontend**: React Native with Expo Router
-- **Authentication**: Clerk SDK
-- **Database**: Supabase (PostgreSQL)
-- **AI**: Ollama REST API
-- **State Management**: Zustand + React Hook Form
-- **Styling**: NativeWind (Tailwind CSS)
-- **Navigation**: File-based routing with Expo Router
+# Run with npm
+npm expo start
 
-## Architecture
+# Or bun
+bunx expo
+```
+
+## Overview
+
+Simple event app for university team members to create, discover, and attend events with QR.
+
+### Features
+
+- **Event Management**: Create/edit events with location and capacity limits
+- **Smart Booking**: Real-time availability and QR codes
+- **Social Features**: User profiles and AI username generation
+- **Fun Extras**: Dice roller for games and activities
+
+### Tech Stack
+
+| Component | Technology | Purpose |
+|-----------|------------|---------|
+| Frontend | React Native + Expo | iOS development |
+| Auth | Clerk | User authentication |
+| Backend | Supabase | Database + real-time updates |
+| AI | OpenAI API | Username generation |
+| State | Zustand | App state management |
+
+## Getting Started
+
+### Requirements
+
+- **iOS 14.0+** 
+- **Node.js 18+**
+- **Xcode 14+** (for development)
+- **Expo CLI**: `npm install -g expo-cli`
+
+### Environment Setup
+
+Create `.env` file:
+
+```env
+# Required
+EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_xxx
+EXPO_PUBLIC_SUPABASE_URL=https://xxx.supabase.co
+EXPO_PUBLIC_SUPABASE_ANON_KEY=eyJhbGc...
+
+# Optional
+EXPO_PUBLIC_OPENAI_API_KEY=sk-xxx
+```
+
+### Database Setup
+
+Run in Supabase SQL Editor:
+
+```sql
+-- Events table
+CREATE TABLE events (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  title TEXT NOT NULL,
+  description TEXT,
+  location JSONB,
+  date TIMESTAMPTZ NOT NULL,
+  owner_id TEXT NOT NULL,
+  max_guests INTEGER NOT NULL,
+  booked_count INTEGER DEFAULT 0,
+  image_url TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Bookings table
+CREATE TABLE bookings (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  event_id UUID REFERENCES events(id) ON DELETE CASCADE,
+  user_id TEXT NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(event_id, user_id)
+);
+
+-- Enable security
+ALTER TABLE events ENABLE ROW LEVEL SECURITY;
+ALTER TABLE bookings ENABLE ROW LEVEL SECURITY;
+
+-- Basic policies (users can read all events, manage their own)
+CREATE POLICY "Public read events" ON events FOR SELECT USING (true);
+CREATE POLICY "Users manage own events" ON events FOR ALL USING (auth.uid() = owner_id);
+CREATE POLICY "Users manage own bookings" ON bookings FOR ALL USING (auth.uid() = user_id);
+```
+
+## Development
+
+### Running the App
+
+```bash
+npm expo start              # Development server
+npm run ios            # iOS Simulator
+npm expo start -- --clear   # Clear cache
+```
 
 ### Project Structure
+
 ```
-app/
-├── (auth)/                 # Authentication screens and layout
-├── (tabs)/                # Main app navigation tabs
-├── booking/[id].tsx       # Dynamic booking details
-├── create-event.tsx       # Event creation form
-└── _layout.tsx           # Root app configuration
-
-lib/
-├── supabase.ts           # Database client
-├── events.ts             # Event operations
-├── bookings.ts           # Booking logic
-└── ollama.ts             # AI integration
-
-components/
-├── forms/                # Reusable form components
-├── ui/                   # UI components
-└── navigation/           # Navigation components
+jetop-ios-app/
+├── app/                    # Screens (Expo Router)
+│   ├── (auth)/            # Authentication flow
+│   │   ├── sign-in.tsx
+│   │   └── sign-up.tsx
+│   ├── (tabs)/            # Main app navigation
+│   │   ├── events.tsx     # Events list
+│   │   ├── create.tsx     # Create event
+│   │   ├── bookings.tsx   # My bookings
+│   │   └── profile.tsx    # User profile
+│   ├── event/
+│   │   └── [id].tsx       # Event details
+│   ├── _layout.tsx        # Root layout with auth
+│   └── +not-found.tsx     # 404 page
+├── components/            
+│   ├── common/            # Reusable UI components
+│   │   ├── Button.tsx
+│   │   ├── Card.tsx
+│   │   └── LoadingSpinner.tsx
+│   ├── events/            # Event-specific components
+│   │   ├── EventCard.tsx
+│   │   ├── EventForm.tsx
+│   │   └── QRGenerator.tsx
+│   ├── features/          # Feature-specific components
+│   │   ├── DiceRoller.tsx
+│   │   └── MapPicker.tsx
+│   └── templates/         # Screen layout templates
+├── lib/                   # Core services
+│   ├── supabase.ts        # Database client
+│   ├── events.ts          # Event CRUD operations
+│   ├── bookings.ts        # Booking operations
+│   └── ai.ts              # AI service (OpenAI)
+├── store/                 # State management
+│   ├── dice.ts            # Dice game state
+│   └── auth.ts            # Auth state
+├── theme/                 
+│   └── theme.ts           # Design system
+├── types/                 
+│   ├── database.ts        # Supabase types
+│   └── common.ts          # Shared types
+├── utils/                 
+│   ├── cache.ts           # Token management
+│   ├── validation.ts      # Form validation
+│   └── helpers.ts         # Utility functions
+├── hooks/                 # Custom React hooks
+│   ├── useEvents.ts
+│   ├── useBookings.ts
+│   └── useAuth.ts
+└── __tests__/             # Test files
+    ├── components/
+    └── utils/
 ```
 
-### Authentication Flow
-The app uses Clerk for authentication with a custom onboarding process:
+### Key Components
 
 ```typescript
-// Redirect logic based on user state
-if (isSignedIn && user?.unsafeMetadata?.onboarding_completed !== true) {
-  return <Redirect href="/(auth)/complete-your-account" />;
+// Event operations
+export async function createEvent(data: CreateEventInput, userId: string): Promise<Event>
+export async function getUpcomingEvents(): Promise<Event[]>
+export async function bookEvent(eventId: string, userId: string): Promise<void>
+
+// Main types
+interface Event {
+  id: string;
+  title: string;
+  description?: string;
+  date: string;
+  owner_id: string;
+  max_guests: number;
+  booked_count: number;
+  location?: { latitude: number; longitude: number; address?: string };
+  image_url?: string;
 }
 ```
 
-Users authenticate via social providers, then complete their profile before accessing the main application.
+## Testing
 
-### Database Schema
-```sql
--- Core tables
-events {
-  id, title, description, location, date, 
-  max_guests, booked_count, created_by
-}
-
-bookings {
-  id, event_id, user_id, created_at
-}
-```
-
-Row Level Security policies ensure users can only access appropriate data.
-
-## Setup
-
-### Prerequisites
-- Node.js 18+
-- Expo CLI
-- iOS Simulator or Android Emulator
-
-### Installation
 ```bash
-git clone <repository-url>
-cd jetop-app
-npm install
+npm test              # Run tests
+npm run test:watch    # Watch mode
+npm run lint          # Check code style
 ```
 
-### Environment Configuration
-Create `.env` file:
+## Deployment
+
+### Build for iOS
+
 ```bash
-EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY=your_clerk_key
-EXPO_PUBLIC_SUPABASE_URL=your_supabase_url
-EXPO_PUBLIC_SUPABASE_ANON_KEY=your_supabase_key
-EXPO_PUBLIC_OLLAMA_URL=your_ollama_endpoint
+# Install EAS CLI
+npm install -g eas-cli
+
+# Configure and build
+eas build:configure
+eas build --platform ios --profile production
+
+# For testing on device
+eas build --platform ios --profile preview
 ```
 
-### Service Setup
+### App Configuration
 
-**Clerk Authentication**
-1. Create Clerk application
-2. Configure OAuth providers (Google, Facebook, Apple)
-3. Set up custom user metadata fields
-
-**Supabase Database**
-1. Create new Supabase project
-2. Run database migrations for events and bookings tables
-3. Configure Row Level Security policies
-
-**Ollama AI**
-1. Install Ollama locally or deploy to server
-2. Ensure API endpoint is accessible
-3. Configure model for nickname generation
-
-### Development
-```bash
-npx expo start          # Start development server
-npx expo run:ios        # Run on iOS
-npx expo run:android    # Run on Android
-```
-
-## Key Implementation Details
-
-### Event Booking System
-Events use optimistic updates for better UX:
-```typescript
-const handleBooking = async () => {
-  // Optimistic update
-  event.booked_count += 1;
-  setIsBooked(true);
-  
-  try {
-    await createBooking(event.id, userId);
-  } catch (error) {
-    // Rollback on error
-    event.booked_count -= 1;
-    setIsBooked(false);
+```json
+// app.json (key settings)
+{
+  "expo": {
+    "name": "JEToP",
+    "slug": "jetop-ios",
+    "platforms": ["ios"],
+    "ios": {
+      "bundleIdentifier": "com.jetop.university",
+      "deploymentTarget": "14.0"
+    }
   }
-};
+}
 ```
 
-### State Management
-Global state uses Zustand for simplicity:
+## Troubleshooting
+
+### Common Issues
+
+```bash
+# Build problems
+rm -rf node_modules .expo
+npm install
+npm start -- --clear
+
+# Simulator issues
+xcrun simctl erase all
+
+# Check logs
+npx react-native log-ios
+```
+
+### Debug Database Connection
+
 ```typescript
-const useDiceStore = create((set) => ({
-  diceCount: 1,
-  setDiceCount: (count) => set({ diceCount: count }),
-}));
+// Test in app
+const { data, error } = await supabase.from('events').select('count(*)');
+console.log('DB test:', { data, error });
 ```
 
-### AI Integration
-Nickname generation with error handling:
-```typescript
-export const generateNicknames = async (prompt: string) => {
-  const response = await fetch(`${OLLAMA_URL}/api/generate`, {
-    method: 'POST',
-    body: JSON.stringify({ model: 'llama2', prompt, stream: false })
-  });
-  
-  if (!response.ok) throw new Error('Generation failed');
-  return parseNicknames(await response.json());
-};
-```
+## Contributing
 
-## Performance Considerations
+This is a university team challenge project! To contribute:
 
-- FlatList virtualization for event lists
-- React.memo for expensive list items
-- Optimistic updates for better perceived performance
-- Database indexing on frequently queried fields
-- Proper error boundaries for crash prevention
+1. Fork the repo
+2. Create feature branch: `git checkout -b feature/my-feature`
+3. Make changes and test: `npm test`
+4. Commit: `git commit -m "feat: add my feature"`
+5. Push and create PR
 
-## Useful Links
-- [Ollama API](https://github.com/m-daniele/ollama-api.git)
-- [Clerk Documentation](https://clerk.com/docs)
-- [Supabase Docs](https://supabase.com/docs)
-- [Expo Router Guide](https://docs.expo.dev/router/introduction/)
+### Code Style
+
+- Use TypeScript for all files
+- Follow ESLint rules: `npm run lint`
+- Write tests for new features
+
+## Team & Challenge Info
+
+**Team**: JEToP
+**Challenge**: Mobile Event Management App  
+**Platform**: iOS Only  
+**Timeline**: IT area Challenge 2025  
+
+---
+
+**Built with** 💜 **for the JEToP**
