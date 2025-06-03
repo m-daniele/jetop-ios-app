@@ -191,9 +191,6 @@ jetop-ios-app/
 │   ├── useEvents.ts
 │   ├── useBookings.ts
 │   └── useAuth.ts
-└── __tests__/             # Test files
-    ├── components/
-    └── utils/
 ```
 
 ### Key Components
