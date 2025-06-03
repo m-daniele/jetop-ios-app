@@ -4,7 +4,7 @@
 [![iOS](https://img.shields.io/badge/iOS-14.0+-green.svg)](https://developer.apple.com/ios/)
 [![React Native](https://img.shields.io/badge/React%20Native-0.79.2-61DAFB.svg)](https://reactnative.dev/)
 
-Event management platform for JEurs university team challenge - **iOS Only**
+Event management platform for Junior Enterprises - **iOS Only**
 
 ## 📑 Table of Contents
 
