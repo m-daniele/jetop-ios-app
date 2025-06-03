@@ -306,4 +306,4 @@ This is a university team challenge project! To contribute:
 
 ---
 
-**Built with** 💜 **for the JEToP**
+**Built with** 💜 **for JEToP**
