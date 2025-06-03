@@ -1,4 +1,5 @@
 export interface Event {
+  host_id: string | undefined;
   id: string;
   title: string;
   description?: string;

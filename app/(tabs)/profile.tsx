@@ -6,7 +6,6 @@ import { Stack, useRouter } from "expo-router";
 import { LinearGradient } from 'expo-linear-gradient';
 import { Mail, User, AtSign, LogOut, Camera } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
-import { useUser } from '@clerk/clerk-expo';
 
 // Import common components
 import {

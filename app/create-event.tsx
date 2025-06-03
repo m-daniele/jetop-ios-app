@@ -1,40 +1,140 @@
-import React, { useState } from 'react';
-import { View, Text, TextInput, Alert, StyleSheet, ScrollView, KeyboardAvoidingView, Platform, TouchableOpacity, ActivityIndicator, Image } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { BlurView } from 'expo-blur';
-import DatePickerInput from 'components/features/DatePickerInput';
-import LocationPicker from 'components/features/LocationPicker';
-import { createEvent } from 'lib/events';
-import { router, Stack } from 'expo-router';
+// app/create-event.tsx - Unified Create/Edit Event Screen
+import React, { useState, useEffect } from 'react';
+import { 
+  View, 
+  Text, 
+  TextInput, 
+  Alert, 
+  StyleSheet, 
+  ScrollView, 
+  KeyboardAvoidingView, 
+  Platform, 
+  TouchableOpacity, 
+  ActivityIndicator, 
+  Image 
+} from 'react-native';
+import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useUser } from "@clerk/clerk-expo";
-import { ChevronLeft, Calendar, MapPin, Users, Type, FileText, Sparkles, Camera, X } from 'lucide-react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useForm, Controller } from 'react-hook-form';
+import { 
+  ChevronLeft, 
+  Calendar, 
+  MapPin, 
+  Users, 
+  Type, 
+  FileText, 
+  Sparkles, 
+  Camera, 
+  X,
+  Save
+} from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system';
-import { supabase } from 'lib/supabase'; // Assicurati di avere il client Supabase
 
-export default function CreateEventScreen() {
-  const { user, isLoaded } = useUser();
-  const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
-  const [date, setDate] = useState(new Date());
-  const [maxGuests, setmaxGuests] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [imageUri, setImageUri] = useState<string | null>(null);
-  const [uploadingImage, setUploadingImage] = useState(false);
-  const [eventLocation, setEventLocation] = useState<{
+// Import common components
+import {
+  SafeGradientView,
+  HeaderSection,
+  BlurCard,
+  ActionButton,
+  IconButton,
+  FormInput
+} from '../components/common';
+
+// Import custom components
+import DatePickerInput from '../components/features/DatePickerInput';
+import LocationPicker from '../components/features/LocationPicker';
+
+// Import API and utilities
+import { createEvent, updateEvent, getEventById } from '../lib/events';
+import { supabase } from '../lib/supabase';
+import { theme } from 'theme/theme';
+
+interface FormData {
+  title: string;
+  description: string;
+  date: Date;
+  maxGuests: string;
+  location?: {
     latitude: number;
     longitude: number;
     address?: string;
-  } | undefined>();
+  };
+  imageUrl?: string;
+}
 
-  const handleDateChange = (selectedDate: Date) => {
-    setDate(selectedDate);
+export default function CreateEventScreen() {
+  const { user, isLoaded } = useUser();
+  const { id, mode } = useLocalSearchParams<{ id?: string; mode?: string }>();
+  const isEditMode = mode === 'edit' && id;
+  
+  const [loading, setLoading] = useState(false);
+  const [initialLoading, setInitialLoading] = useState(isEditMode);
+  const [imageUri, setImageUri] = useState<string | null>(null);
+  const [uploadingImage, setUploadingImage] = useState(false);
+  
+  const { control, handleSubmit, formState: { errors }, setValue, watch } = useForm<FormData>({
+    defaultValues: {
+      title: '',
+      description: '',
+      date: new Date(),
+      maxGuests: '',
+      location: undefined,
+      imageUrl: undefined,
+    }
+  });
+
+  // Load event data if in edit mode
+  useEffect(() => {
+    if (isEditMode && id) {
+      loadEventData();
+    }
+  }, [isEditMode, id]);
+
+  const loadEventData = async () => {
+    try {
+      
+      const event = await getEventById(id!);
+      
+      // Check if user is the owner
+      if (event.owner_id !== user?.id) {
+        Alert.alert('Error', 'You can only edit your own events');
+        router.back();
+        return;
+      }
+
+      // Set form values
+      setValue('title', event.title);
+      setValue('description', event.description || '');
+      setValue('date', new Date(event.date));
+      setValue('maxGuests', event.max_guests.toString());
+      
+      if (event.location) {
+        try {
+          const locationData = typeof event.location === 'string' 
+            ? JSON.parse(event.location) 
+            : event.location;
+          setValue('location', locationData);
+        } catch (error) {
+          console.error('Error parsing location:', error);
+        }
+      }
+
+      if (event.image_url) {
+        setImageUri(event.image_url);
+        setValue('imageUrl', event.image_url);
+      }
+    } catch (error) {
+      console.error('Error loading event:', error);
+      Alert.alert('Error', 'Failed to load event data');
+      router.back();
+    } finally {
+      setInitialLoading(false);
+    }
   };
 
   const pickImage = async () => {
     try {
-      // Richiedi permessi
       const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
       
       if (permissionResult.granted === false) {
@@ -42,11 +142,10 @@ export default function CreateEventScreen() {
         return;
       }
 
-      // Apri image picker
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: true,
-        aspect: [16, 9], // Aspect ratio per eventi
+        aspect: [16, 9],
         quality: 0.8,
         base64: false,
       });
@@ -62,39 +161,33 @@ export default function CreateEventScreen() {
 
   const removeImage = () => {
     setImageUri(null);
+    setValue('imageUrl', undefined);
   };
 
   const uploadImageToSupabase = async (uri: string): Promise<string | null> => {
     try {
       setUploadingImage(true);
       
-      // Genera un nome file unico
       const fileExt = uri.split('.').pop();
       const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
       const filePath = `event-images/${fileName}`;
 
-      // Leggi il file come base64 usando Expo FileSystem
       const base64 = await FileSystem.readAsStringAsync(uri, {
         encoding: FileSystem.EncodingType.Base64,
       });
 
-      // Converti base64 in ArrayBuffer (richiesto per React Native)
       const { decode } = await import('base64-arraybuffer');
       const arrayBuffer = decode(base64);
 
-      // Carica su Supabase Storage
       const { data, error } = await supabase.storage
-        .from('events') // Nome del bucket su Supabase
+        .from('events')
         .upload(filePath, arrayBuffer, {
           contentType: 'image/jpeg',
           upsert: false
         });
 
-      if (error) {
-        throw error;
-      }
+      if (error) throw error;
 
-      // Ottieni l'URL pubblico
       const { data: { publicUrl } } = supabase.storage
         .from('events')
         .getPublicUrl(filePath);
@@ -109,80 +202,75 @@ export default function CreateEventScreen() {
     }
   };
 
- const handleSubmit = async () => {
-  if (!user) {
-    Alert.alert('Error', 'You must be authenticated to create events');
-    return;
-  }
-
-  if (!title.trim() || !maxGuests.trim()) {
-    Alert.alert('Error', 'Please fill in all required fields');
-    return;
-  }
-
-  const maxGuestsNum = parseInt(maxGuests);
-  if (isNaN(maxGuestsNum) || maxGuestsNum <= 0) {
-    Alert.alert('Error', 'Please enter a valid number of guests');
-    return;
-  }
-
-  setLoading(true);
-  try {
-    let imageUrl = null;
-    
-    // Se c'è un'immagine, caricala prima
-    if (imageUri) {
-      imageUrl = await uploadImageToSupabase(imageUri);
-      if (!imageUrl) {
-        setLoading(false);
-        return; // Interrompi se il caricamento dell'immagine fallisce
-      }
+  const onSubmit = async (data: FormData) => {
+    if (!user) {
+      Alert.alert('Error', 'You must be authenticated to create events');
+      return;
     }
 
-    // Prepare location data
-    // Store location as JSON string with latitude, longitude, and address
-    const locationData = eventLocation ? JSON.stringify({
-      latitude: eventLocation.latitude,
-      longitude: eventLocation.longitude,
-      address: eventLocation.address || ''
-    }) : '';
+    const maxGuestsNum = parseInt(data.maxGuests);
+    if (isNaN(maxGuestsNum) || maxGuestsNum <= 0) {
+      Alert.alert('Error', 'Please enter a valid number of guests');
+      return;
+    }
 
-    await createEvent({
-      title: title.trim(),
-      description: description.trim(),
-      location: locationData, // Now passing the structured location as JSON string
-      date: date.toISOString(),
-      max_guests: maxGuestsNum,
-      image_url: imageUrl ?? undefined
-    }, user.id);
-    
-    router.back();
-    
-    // Reset form
-    setTitle('');
-    setDescription('');
-    setEventLocation(undefined); // Reset the structured location
-    setDate(new Date());
-    setmaxGuests('');
-    setImageUri(null);
-    
-  } catch (error) {
-    const errorMessage = (error instanceof Error && error.message) ? error.message : 'Error creating event';
-    Alert.alert('Error', errorMessage);
-  }
-  setLoading(false);
-};
+    setLoading(true);
+    try {
+      let imageUrl = data.imageUrl;
+      
+      // Upload new image if changed
+      if (imageUri && !imageUri.startsWith('http')) {
+        const uploadedUrl = await uploadImageToSupabase(imageUri);
+        if (!uploadedUrl) {
+          setLoading(false);
+          return;
+        }
+        imageUrl = uploadedUrl;
+      }
 
-  if (!isLoaded) {
+      // Prepare location data
+      const locationData = data.location ? JSON.stringify({
+        latitude: data.location.latitude,
+        longitude: data.location.longitude,
+        address: data.location.address || ''
+      }) : '';
+
+      const eventData = {
+        title: data.title.trim(),
+        description: data.description.trim(),
+        location: locationData,
+        date: data.date.toISOString(),
+        max_guests: maxGuestsNum,
+        image_url: imageUrl,
+      };
+
+      if (isEditMode && id) {
+        await updateEvent(id, eventData, user.id);
+        Alert.alert('Success', 'Event updated successfully');
+      } else {
+        await createEvent(eventData, user.id);
+        Alert.alert('Success', 'Event created successfully');
+      }
+      
+      router.back();
+    } catch (error: any) {
+      const errorMessage = error.message || `Error ${isEditMode ? 'updating' : 'creating'} event`;
+      Alert.alert('Error', errorMessage);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (!isLoaded || initialLoading) {
     return (
-      <LinearGradient colors={['#0F0C29', '#302B63', '#24243e']} style={styles.gradient}>
+      <SafeGradientView>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#a855f7" />
+          <ActivityIndicator size="large" color={theme.colors.primary.purple} />
         </View>
-      </LinearGradient>
+      </SafeGradientView>
     );
   }
-  
+
   return (
     <>
       <Stack.Screen 
@@ -192,49 +280,44 @@ export default function CreateEventScreen() {
           headerTransparent: true,
           headerStyle: { backgroundColor: 'transparent' },
           headerLeft: () => (
-            <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-              <BlurView intensity={50} tint="dark" style={styles.backButtonBlur}>
-                <ChevronLeft size={20} color="white" />
-              </BlurView>
-            </TouchableOpacity>
+            <IconButton
+              icon={ChevronLeft}
+              onPress={() => router.back()}
+              style={styles.backButton}
+              blur
+            />
           ),
         }}
       />
       
-      <LinearGradient
-        colors={['#0F0C29', '#302B63', '#24243e']}
-        style={styles.gradient}
-      >
+      <SafeGradientView edges={['bottom']}>
         <KeyboardAvoidingView 
           style={styles.container}
           behavior={Platform.OS === "ios" ? "padding" : "height"}
-          keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 30}
+          keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 20}
         >
           <ScrollView 
             contentContainerStyle={styles.scrollContent}
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
           >
-            {/* Header Section */}
-            <View style={styles.headerSection}>
-              <Text style={styles.title}>Create Event</Text>
-            </View>
+            {/* Header */}
+            <HeaderSection
+              title={isEditMode ? 'Edit Event' : 'Create Event'}
+              subtitle={isEditMode ? 'Update your event details' : 'Host something amazing'}
+            />
 
             {/* Form Section */}
             <View style={styles.formSection}>
               {/* Event Image Picker */}
-              <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>
-                  <Camera size={14} color="rgba(255,255,255,0.6)" /> Event Photo
-                </Text>
-                
+              <FormInput label="Event Photo">
                 {imageUri ? (
                   <View style={styles.imageContainer}>
                     <Image source={{ uri: imageUri }} style={styles.eventImage} />
                     <TouchableOpacity style={styles.removeImageButton} onPress={removeImage}>
-                      <BlurView intensity={50} tint="dark" style={styles.removeImageBlur}>
+                      <BlurCard style={styles.removeImageBlur}>
                         <X color="white" size={16} />
-                      </BlurView>
+                      </BlurCard>
                     </TouchableOpacity>
                     {uploadingImage && (
                       <View style={styles.uploadingOverlay}>
@@ -244,117 +327,149 @@ export default function CreateEventScreen() {
                   </View>
                 ) : (
                   <TouchableOpacity onPress={pickImage} activeOpacity={0.8}>
-                    <BlurView intensity={20} tint="dark" style={styles.imagePickerContainer}>
-                      <Camera color="rgba(255,255,255,0.6)" size={32} />
+                    <BlurCard style={styles.imagePickerContainer}>
+                      <Camera color={theme.colors.text.muted} size={32} />
                       <Text style={styles.imagePickerText}>Tap to add event photo</Text>
                       <Text style={styles.imagePickerSubtext}>16:9 ratio recommended</Text>
-                    </BlurView>
+                    </BlurCard>
                   </TouchableOpacity>
                 )}
-              </View>
+              </FormInput>
 
               {/* Title Input */}
-              <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>
-                  <Type size={14} color="rgba(255,255,255,0.6)" /> Event Title *
-                </Text>
-                <BlurView intensity={20} tint="dark" style={styles.inputBlurContainer}>
-                  <TextInput
-                    style={styles.input}
-                    placeholder="Give your event a catchy name"
-                    placeholderTextColor="rgba(255,255,255,0.3)"
-                    value={title}
-                    onChangeText={setTitle}
-                    maxLength={100}
-                  />
-                </BlurView>
-              </View>
+              <Controller
+                control={control}
+                name="title"
+                rules={{ required: 'Event title is required' }}
+                render={({ field: { onChange, value } }) => (
+                  <FormInput 
+                    label="Event Title" 
+                    required
+                    error={errors.title?.message}
+                  >
+                    <BlurCard style={styles.inputCard}>
+                      <TextInput
+                        style={styles.input}
+                        placeholder="Give your event a catchy name"
+                        placeholderTextColor={theme.colors.text.disabled}
+                        value={value}
+                        onChangeText={onChange}
+                        keyboardAppearance='dark'
+                        maxLength={100}
+                      />
+                    </BlurCard>
+                  </FormInput>
+                )}
+              />
 
               {/* Description Input */}
-              <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>
-                  <FileText size={14} color="rgba(255,255,255,0.6)" /> Description
-                </Text>
-                <BlurView intensity={20} tint="dark" style={styles.inputBlurContainer}>
-                  <TextInput
-                    style={[styles.input, styles.textArea]}
-                    placeholder="What's your event about?"
-                    placeholderTextColor="rgba(255,255,255,0.3)"
-                    value={description}
-                    onChangeText={setDescription}
-                    multiline
-                    numberOfLines={4}
-                    maxLength={500}
-                  />
-                </BlurView>
-              </View>
+              <Controller
+                control={control}
+                name="description"
+                render={({ field: { onChange, value } }) => (
+                  <FormInput label="Description">
+                    <BlurCard style={styles.inputCard}>
+                      <TextInput
+                        style={[styles.input, styles.textArea]}
+                        placeholder="What's your event about?"
+                        placeholderTextColor={theme.colors.text.disabled}
+                        value={value}
+                        onChangeText={onChange}
+                        multiline
+                        numberOfLines={4}
+                        keyboardAppearance='dark'
+                        maxLength={500}
+                        textAlignVertical="top"
+                      />
+                    </BlurCard>
+                  </FormInput>
+                )}
+              />
 
               {/* Location Picker */}
-              <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>
-                  <MapPin size={14} color="rgba(255,255,255,0.6)" /> Location
-                </Text>
-                <LocationPicker
-                  value={eventLocation}
-                  onLocationChange={setEventLocation}
-                  placeholder="Where's it happening?"
-                />
-              </View>
+              <Controller
+                control={control}
+                name="location"
+                render={({ field: { onChange, value } }) => (
+                  <FormInput label="Location">
+                    <LocationPicker
+                      value={value}
+                      onLocationChange={onChange}
+                      placeholder="Where's it happening?"
+                    />
+                  </FormInput>
+                )}
+              />
 
               {/* Date Picker */}
-              <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>
-                  <Calendar size={14} color="rgba(255,255,255,0.6)" /> Date & Time *
-                </Text>
-                <DatePickerInput
-                  value={date}
-                  onDateChange={handleDateChange}
-                  placeholder="When's the event?"
-                  minimumDate={new Date()}
-                />
-              </View>
+              <Controller
+                control={control}
+                name="date"
+                rules={{ required: 'Date is required' }}
+                render={({ field: { onChange, value } }) => (
+                  <FormInput 
+                    label="Date & Time" 
+                    required
+                    error={errors.date?.message}
+                  >
+                    <DatePickerInput
+                      value={value}
+                      onDateChange={onChange}
+                      placeholder="When's the event?"
+                      minimumDate={new Date()}
+                    />
+                  </FormInput>
+                )}
+              />
 
               {/* Max Guests Input */}
-              <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>
-                  <Users size={14} color="rgba(255,255,255,0.6)" /> Max Guests *
-                </Text>
-                <BlurView intensity={20} tint="dark" style={styles.inputBlurContainer}>
-                  <TextInput
-                    style={styles.input}
-                    placeholder="How many people can join?"
-                    placeholderTextColor="rgba(255,255,255,0.3)"
-                    value={maxGuests}
-                    onChangeText={setmaxGuests}
-                    keyboardType="numeric"
-                    maxLength={4}
-                  />
-                </BlurView>
-              </View>
+              <Controller
+                control={control}
+                name="maxGuests"
+                rules={{ 
+                  required: 'Number of guests is required',
+                  pattern: {
+                    value: /^\d+$/,
+                    message: 'Please enter a valid number'
+                  }
+                }}
+                render={({ field: { onChange, value } }) => (
+                  <FormInput 
+                    label="Max Guests" 
+                    required
+                    error={errors.maxGuests?.message}
+                  >
+                    <BlurCard style={styles.inputCard}>
+                      <TextInput
+                        style={styles.input}
+                        placeholder="How many people can join?"
+                        placeholderTextColor={theme.colors.text.disabled}
+                        value={value}
+                        onChangeText={onChange}
+                        keyboardType="numeric"
+                        keyboardAppearance='dark'
+                        maxLength={4}
+                      />
+                    </BlurCard>
+                  </FormInput>
+                )}
+              />
 
               {/* Submit Button */}
-              <TouchableOpacity
-                onPress={handleSubmit}
-                disabled={loading || uploadingImage}
-                activeOpacity={0.8}
-                style={styles.submitButtonContainer}
-              >
-                <LinearGradient
-                  colors={(loading || uploadingImage) ? ['#6b7280', '#4b5563'] : ['#5000ce', '#6900a3']}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  style={styles.submitButton}
-                >
-                  {(loading || uploadingImage) ? (
-                    <ActivityIndicator size="small" color="white" />
-                  ) : (
-                    <Sparkles color="white" size={20} />
-                  )}
-                  <Text style={styles.submitButtonText}>
-                    {uploadingImage ? 'Uploading...' : loading ? 'Creating...' : 'Add Event'}
-                  </Text>
-                </LinearGradient>
-              </TouchableOpacity>
+              <View style={styles.submitButtonContainer}>
+                <ActionButton
+                  title={
+                    uploadingImage ? 'Uploading...' : 
+                    loading ? (isEditMode ? 'Updating...' : 'Creating...') : 
+                    (isEditMode ? 'Update Event' : 'Add Event')
+                  }
+                  onPress={handleSubmit(onSubmit)}
+                  icon={isEditMode ? Save : Sparkles}
+                  loading={loading || uploadingImage}
+                  disabled={loading || uploadingImage}
+                  variant="primary"
+                />
+              </View>
             </View>
 
             {/* Footer */}
@@ -363,124 +478,52 @@ export default function CreateEventScreen() {
             </Text>
           </ScrollView>
         </KeyboardAvoidingView>
-      </LinearGradient>
+      </SafeGradientView>
     </>
   );
 }
 
 const styles = StyleSheet.create({
-  gradient: {
-    flex: 1,
-  },
   container: {
     flex: 1,
+    marginTop: 60,
   },
   scrollContent: {
-    padding: 20,
-    paddingTop: 100,
-    paddingBottom: 40,
+    padding: theme.spacing.lg,
+    paddingTop: theme.spacing.xl,
+    paddingBottom: theme.spacing.xxxl,
   },
   backButton: {
-    marginLeft: 10,
-  },
-  backButtonBlur: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-    overflow: 'hidden',
-    backgroundColor: 'rgba(255,255,255,0.1)',
+    marginLeft: theme.spacing.sm,
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  errorContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-  },
-  errorText: {
-    fontSize: 18,
-    color: '#ef4444',
-    textAlign: 'center',
-  },
-  headerSection: {
-    alignItems: 'center',
-    marginBottom: 40,
-  },
-  title: {
-    fontSize: 36,
-    fontWeight: '800',
-    color: '#fff',
-    marginBottom: 0,
-    letterSpacing: -0.5,
-  },
-  subtitle: {
-    fontSize: 18,
-    color: 'rgba(255,255,255,0.7)',
-    textAlign: 'center',
-    lineHeight: 26,
-  },
   formSection: {
-    gap: 10,
+    gap: theme.spacing.xs,
   },
-  inputGroup: {
-    marginBottom: 4,
-  },
-  inputLabel: {
-    fontSize: 14,
-    color: 'rgba(255,255,255,0.6)',
-    marginBottom: 8,
-    marginLeft: 4,
-    fontWeight: '500',
-    letterSpacing: 0.5,
-  },
-  inputBlurContainer: {
-    borderRadius: 16,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
-  },
-  input: {
-    backgroundColor: 'rgba(255,255,255,0.05)',
-    padding: 16,
-    fontSize: 16,
-    color: '#fff',
-  },
-  textArea: {
-    minHeight: 100,
-    textAlignVertical: 'top',
-  },
-  // Nuovi stili per l'image picker
   imageContainer: {
     position: 'relative',
   },
   eventImage: {
     width: '100%',
     height: 200,
-    borderRadius: 16,
+    borderRadius: theme.borderRadius.lg,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
+    borderColor: theme.colors.ui.border,
   },
   removeImageButton: {
     position: 'absolute',
-    top: 8,
-    right: 8,
-    width: 28,
-    height: 28,
-    borderRadius: 14,
+    top: theme.spacing.sm,
+    right: theme.spacing.sm,
+    borderRadius: theme.borderRadius.full,
     overflow: 'hidden',
   },
   removeImageBlur: {
-    width: '100%',
-    height: '100%',
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: 'rgba(220,38,38,0.3)',
+    padding: theme.spacing.xs,
+    backgroundColor: 'rgba(220,38,38,0.8)',
   },
   uploadingOverlay: {
     position: 'absolute',
@@ -491,64 +534,50 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.5)',
     justifyContent: 'center',
     alignItems: 'center',
-    borderRadius: 16,
+    borderRadius: theme.borderRadius.lg,
   },
   imagePickerContainer: {
-    padding: 40,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
-    backgroundColor: 'rgba(255,255,255,0.05)',
+    padding: theme.spacing.xxl,
     alignItems: 'center',
     justifyContent: 'center',
     borderStyle: 'dashed',
+    borderWidth: 2,
+    borderColor: theme.colors.ui.border,
   },
   imagePickerText: {
-    fontSize: 16,
-    color: 'rgba(255,255,255,0.8)',
-    marginTop: 12,
-    fontWeight: '500',
+    fontSize: theme.typography.fontSize.md,
+    color: theme.colors.text.primary,
+    marginTop: theme.spacing.md,
+    fontWeight: theme.typography.fontWeight.medium,
   },
   imagePickerSubtext: {
-    fontSize: 12,
-    color: 'rgba(255,255,255,0.4)',
-    marginTop: 4,
+    fontSize: theme.typography.fontSize.xs,
+    color: theme.colors.text.muted,
+    marginTop: theme.spacing.xs,
   },
-  customPicker: {
-    backgroundColor: 'transparent',
-    color: '#fff',
-    fontSize: 16,
-    padding: 16,
+  inputCard: {
+    padding: 0,
+    overflow: 'hidden',
+  },
+  input: {
+    padding: theme.spacing.md,
+    fontSize: theme.typography.fontSize.md,
+    color: theme.colors.text.primary,
+    backgroundColor: theme.colors.ui.blurBg,
+  },
+  textArea: {
+    minHeight: 100,
+    textAlignVertical: 'top',
   },
   submitButtonContainer: {
-    marginTop: 20,
+    marginTop: theme.spacing.lg,
     alignItems: 'center',
-  },
-  submitButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    paddingVertical: 18,
-    paddingHorizontal: 40,
-    borderRadius: 30,
-    shadowColor: '#a855f7',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.4,
-    shadowRadius: 16,
-    elevation: 8,
-  },
-  submitButtonText: {
-    fontSize: 18,
-    fontWeight: '500',
-    color: 'white',
-    letterSpacing: 0.5,
-    paddingVertical: 0,
   },
   footerText: {
-    fontSize: 12,
-    color: 'rgba(255,255,255,0.4)',
+    fontSize: theme.typography.fontSize.xs,
+    color: theme.colors.text.disabled,
     textAlign: 'center',
-    marginTop: 20,
-    letterSpacing: 0.5,
+    marginTop: theme.spacing.lg,
+    letterSpacing: theme.typography.letterSpacing.wide,
   },
 });

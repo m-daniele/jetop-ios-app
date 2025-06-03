@@ -1,4 +1,5 @@
 import { StyleSheet } from "react-native";
+// to be deleted 
 
 export const styles = StyleSheet.create({
   container: {

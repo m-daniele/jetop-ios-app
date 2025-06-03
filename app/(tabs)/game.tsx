@@ -178,6 +178,7 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
     padding: theme.spacing.lg,
+    marginBottom: theme.spacing.xxxl,
   },
   inputSection: {
     marginBottom: theme.spacing.xl,
@@ -251,5 +252,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: theme.spacing.xl,
     letterSpacing: theme.typography.letterSpacing.wide,
+    marginBottom: theme.spacing.xxxl,
   },
 });

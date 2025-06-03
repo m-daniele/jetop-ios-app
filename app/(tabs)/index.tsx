@@ -1,116 +1,27 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, Alert, FlatList, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, Image, RefreshControl } from 'react-native';
+// app/(tabs)/index.tsx - Fixed with correct imports
+import React, { useState, useEffect, useCallback } from 'react';
+import { 
+  View, 
+  FlatList, 
+  StyleSheet, 
+  ActivityIndicator,
+  RefreshControl,
+  Text,
+  TouchableOpacity,
+  Alert
+} from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { BlurView } from 'expo-blur';
-import { createBooking, checkUserBooking } from 'lib/bookings';
-import { getUpcomingEvents } from 'lib/events';
-import { Event } from 'types/database';
-import { router, Stack } from 'expo-router';
+import { router, Stack, useFocusEffect } from 'expo-router';
 import { useUser } from "@clerk/clerk-expo";
+import { Plus } from 'lucide-react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Calendar, MapPin, Users, Plus, Sparkles } from 'lucide-react-native';
-import { getDisplayAddress } from 'utils/getDisplayAddress';
 
-interface EventItemProps {
-  event: Event;
-  userId: string;
-  onPress: () => void;
-}
+// Import the EventCard component
+import { EventCard } from '../../components/events/EventCard';
 
-const EventItem: React.FC<EventItemProps> = ({ event, userId, onPress }) => {
-  const [isBooked, setIsBooked] = useState<boolean>(false);
-  const [loading, setLoading] = useState<boolean>(false);
-
-  useEffect(() => {
-    checkIfBooked();
-  }, []);
-
-  const checkIfBooked = async () => {
-    try {
-      const booked = await checkUserBooking(event.id, userId);
-      setIsBooked(booked);
-    } catch (error) {
-      console.error('Error checking booking status:', error);
-    }
-  };
-
-  const availableSpots = event.max_guests - event.booked_count;
-  const isSoldOut = availableSpots <= 0;
-  const spotsPercentage = (event.booked_count / event.max_guests) * 100;
-
-  return (
-    <TouchableOpacity onPress={onPress} activeOpacity={0.8}>
-      <BlurView intensity={20} tint="dark" style={styles.eventCard}>
-        {/* Event Image - Smaller height */}
-        {event.image_url && (
-          <Image source={{ uri: event.image_url }} style={styles.eventImage} />
-        )}
-        
-        <View style={styles.eventContent}>
-          {/* Title and Status in same row */}
-          <View style={styles.titleRow}>
-            <Text style={styles.eventTitle} numberOfLines={1}>{event.title}</Text>
-            {isBooked && (
-              <View style={styles.bookedBadge}>
-                <Sparkles size={10} color="white" />
-                <Text style={styles.bookedText}>Booked</Text>
-              </View>
-            )}
-          </View>
-          
-          {/* Event Details - Compact */}
-          <View style={styles.eventDetails}>
-            {/* Date */}
-            <View style={styles.detailRow}>
-              <Calendar size={12} color="rgba(255,255,255,0.5)" />
-              <Text style={styles.detailText}>
-                {new Date(event.date).toLocaleDateString('en-US', {
-                  month: 'short',
-                  day: 'numeric',
-                  hour: '2-digit',
-                  minute: '2-digit'
-                })}
-              </Text>
-            </View>
-            
-            {/* Location */}
-            {event.location && (
-              <View style={styles.detailRow}>
-                <MapPin size={12} color="rgba(255,255,255,0.5)" />
-                <Text style={styles.detailText} numberOfLines={1}>
-                  {getDisplayAddress(event.location).split(',')[0]}
-                </Text>
-              </View>
-            )}
-            
-            {/* Guests */}
-            <View style={styles.detailRow}>
-              <Users size={12} color="rgba(255,255,255,0.5)" />
-              <Text style={styles.detailText}>
-                {availableSpots}/{event.max_guests}
-              </Text>
-            </View>
-          </View>
-          
-          {/* Progress Bar */}
-          <View style={styles.progressContainer}>
-            <View style={styles.progressBar}>
-              <LinearGradient
-                colors={isSoldOut ? ['#ef4444', '#dc2626'] : ['#5000ce', '#6900a3']}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-                style={[styles.progressFill, { width: `${spotsPercentage}%` }]}
-              />
-            </View>
-            {isSoldOut && !isBooked && (
-              <Text style={styles.soldOutText}>Sold Out</Text>
-            )}
-          </View>
-        </View>
-      </BlurView>
-    </TouchableOpacity>
-  );
-};
+// Import API functions
+import { getUpcomingEvents, deleteEvent, subscribeToAllEvents } from '../../lib/events';
+import { Event } from '../../types/database';
 
 export default function EventsScreen() {
   const { user, isLoaded } = useUser();
@@ -118,11 +29,27 @@ export default function EventsScreen() {
   const [loading, setLoading] = useState<boolean>(true);
   const [refreshing, setRefreshing] = useState<boolean>(false);
 
+  // Load events on mount and focus
+  useFocusEffect(
+    useCallback(() => {
+      if (isLoaded && user) {
+        loadEvents();
+      }
+    }, [isLoaded, user])
+  );
+
+  // Set up real-time subscription
   useEffect(() => {
-    if (isLoaded) {
-      loadEvents();
-    }
-  }, [isLoaded]);
+    if (!user) return;
+
+    const subscription = subscribeToAllEvents((payload) => {
+      handleRealtimeUpdate(payload);
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, [user]);
 
   const loadEvents = async () => {
     try {
@@ -137,17 +64,39 @@ export default function EventsScreen() {
     }
   };
 
+  const handleRealtimeUpdate = (payload: any) => {
+    if (payload.eventType === 'INSERT') {
+      setEvents(prev => [payload.new as Event, ...prev]);
+    } else if (payload.eventType === 'UPDATE') {
+      setEvents(prev => prev.map(event => 
+        event.id === payload.new.id ? payload.new as Event : event
+      ));
+    } else if (payload.eventType === 'DELETE') {
+      setEvents(prev => prev.filter(event => event.id !== payload.old.id));
+    }
+  };
+
   const handleRefresh = () => {
     setRefreshing(true);
     loadEvents();
-     // Pause for refresh animation
-      setTimeout(() => {
-        setRefreshing(false);
-      }, 1000);
   };
 
   const handleEventPress = (eventId: string) => {
     router.push({ pathname: "/event-details", params: { id: eventId } });
+  };
+
+  const handleEventEdit = (eventId: string) => {
+    router.push({ pathname: "/create-event", params: { id: eventId, mode: 'edit' } });
+  };
+
+  const handleEventDelete = async (eventId: string) => {
+    try {
+      await deleteEvent(eventId, user!.id);
+      setEvents(prev => prev.filter(event => event.id !== eventId));
+      Alert.alert('Success', 'Event deleted successfully');
+    } catch (error: any) {
+      Alert.alert('Error', error.message || 'Failed to delete event');
+    }
   };
 
   const handleCreateEvent = () => {
@@ -155,18 +104,24 @@ export default function EventsScreen() {
   };
 
   const renderEventItem = ({ item }: { item: Event }) => (
-    <EventItem 
+    <EventCard 
       event={item} 
       userId={user?.id || ''} 
+      isOwner={item.host_id === user?.id}
       onPress={() => handleEventPress(item.id)}
+      onEdit={() => handleEventEdit(item.id)}
+      onDelete={() => handleEventDelete(item.id)}
     />
   );
 
   if (!isLoaded) {
     return (
-      <LinearGradient colors={['#0F0C29', '#302B63', '#24243e']} style={styles.gradient}>
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#a855f7" />
+      <LinearGradient
+        colors={['#0F0C29', '#302B63', '#24243e']}
+        style={styles.gradient}
+      >
+        <View style={styles.centerContainer}>
+          <ActivityIndicator size="large" color="#ffffff" />
         </View>
       </LinearGradient>
     );
@@ -174,8 +129,11 @@ export default function EventsScreen() {
 
   if (!user) {
     return (
-      <LinearGradient colors={['#0F0C29', '#302B63', '#24243e']} style={styles.gradient}>
-        <View style={styles.errorContainer}>
+      <LinearGradient
+        colors={['#0F0C29', '#302B63', '#24243e']}
+        style={styles.gradient}
+      >
+        <View style={styles.centerContainer}>
           <Text style={styles.errorText}>You must be logged in to view events</Text>
         </View>
       </LinearGradient>
@@ -198,8 +156,8 @@ export default function EventsScreen() {
         style={styles.gradient}
       >
         <SafeAreaView style={styles.container}>
-          {/* Header Section */}
-          <View style={styles.headerSection}>
+          {/* Header */}
+          <View style={styles.header}>
             <Text style={styles.title}>Events</Text>
             <Text style={styles.subtitle}>
               Welcome back, {user.firstName || 'there'}!
@@ -209,7 +167,7 @@ export default function EventsScreen() {
           {/* Events List */}
           {loading ? (
             <View style={styles.loadingContainer}>
-              <ActivityIndicator size="large" color="#a855f7" />
+              <ActivityIndicator size="large" color="#ffffff" />
             </View>
           ) : (
             <FlatList
@@ -218,16 +176,14 @@ export default function EventsScreen() {
               keyExtractor={(item) => item.id}
               contentContainerStyle={styles.listContent}
               showsVerticalScrollIndicator={false}
-              refreshing={refreshing}
               refreshControl={
                 <RefreshControl
                   refreshing={refreshing}
                   onRefresh={handleRefresh}
-                  tintColor="white"
-                  colors={["white"]}
+                  tintColor="#ffffff"
+                  colors={["#ffffff"]}
                 />
               }
-              onRefresh={handleRefresh}
               ListEmptyComponent={
                 <View style={styles.emptyContainer}>
                   <Text style={styles.emptyText}>No events available</Text>
@@ -265,28 +221,13 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  listContent: {
-    paddingHorizontal: 20,
-    paddingBottom: 100,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    minHeight: 200,
-  },
-  errorContainer: {
+  centerContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     padding: 20,
   },
-  errorText: {
-    fontSize: 18,
-    color: '#ef4444',
-    textAlign: 'center',
-  },
-  headerSection: {
+  header: {
     paddingHorizontal: 20,
     paddingTop: 50,
     paddingBottom: 20,
@@ -303,94 +244,20 @@ const styles = StyleSheet.create({
     color: 'rgba(255,255,255,0.7)',
     lineHeight: 22,
   },
-  eventCard: {
-    overflow: 'hidden',
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
-    backgroundColor: 'rgba(255,255,255,0.05)',
-    marginBottom: 12,
+  listContent: {
+    paddingHorizontal: 20,
+    paddingBottom: 100,
   },
-  eventImage: {
-    width: '100%',
-    height: 120,
-    resizeMode: 'cover',
-  },
-  eventContent: {
-    padding: 16,
-  },
-  titleRow: {
-    flexDirection: 'row',
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 4,
+    minHeight: 200,
   },
-  eventTitle: {
+  errorText: {
     fontSize: 18,
-    fontWeight: '700',
-    color: '#fff',
-    letterSpacing: -0.3,
-    flex: 1,
-    marginRight: 8,
-    marginBottom : 3,
-  },
-  eventDescription: {
-    fontSize: 13,
-    color: 'rgba(255,255,255,0.5)',
-    marginBottom: 10,
-    lineHeight: 18,
-  },
-  eventDetails: {
-    flexDirection: 'row',
-    gap: 16,
-    marginBottom: 10,
-    flexWrap: 'wrap',
-  },
-  detailRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  detailText: {
-    fontSize: 12,
-    color: 'rgba(255,255,255,0.7)',
-  },
-  progressContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  progressBar: {
-    flex: 1,
-    height: 4,
-    backgroundColor: 'rgba(255,255,255,0.1)',
-    borderRadius: 2,
-    overflow: 'hidden',
-  },
-  progressFill: {
-    height: '100%',
-    borderRadius: 2,
-  },
-  bookedBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: 'rgba(168, 85, 247, 0.2)',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(168, 85, 247, 0.3)',
-  },
-  bookedText: {
-    fontSize: 10,
-    color: '#a855f7',
-    fontWeight: '600',
-  },
-  soldOutText: {
-    fontSize: 10,
     color: '#ef4444',
-    fontWeight: '600',
+    textAlign: 'center',
   },
   emptyContainer: {
     flex: 1,
@@ -419,7 +286,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.4,
     shadowRadius: 16,
     elevation: 8,
-    marginBottom:100,
+    marginBottom: 100,
   },
   fabGradient: {
     width: '100%',

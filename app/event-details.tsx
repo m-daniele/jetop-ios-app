@@ -1,23 +1,60 @@
+// app/event-details.tsx - Refactored Event Details with Unsubscribe
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, Image, Alert, Linking, Platform } from 'react-native';
+import { 
+  View, 
+  Text, 
+  StyleSheet, 
+  TouchableOpacity, 
+  ScrollView, 
+  ActivityIndicator, 
+  Image, 
+  Alert, 
+  Linking, 
+  Platform,
+  Animated 
+} from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { BlurView } from 'expo-blur';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useUser } from "@clerk/clerk-expo";
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { ChevronLeft, Calendar, MapPin, Users, QrCode, Sparkles, Info, ExternalLink } from 'lucide-react-native';
-import { getEventById } from 'lib/events';
-import { createBooking, checkUserBooking } from 'lib/bookings';
-import { Event } from 'types/database';
+import { 
+  ChevronLeft, 
+  Calendar, 
+  MapPin, 
+  Users, 
+  QrCode, 
+  Sparkles, 
+  Info, 
+  ExternalLink,
+  XCircle,
+  Edit3,
+  Trash2
+} from 'lucide-react-native';
+
+// Import common components
+import {
+  SafeGradientView,
+  BlurCard,
+  ActionButton,
+  IconButton
+} from '../components/common';
+
+// Import API functions
+import { getEventById, deleteEvent, subscribeToEventUpdates } from '../lib/events';
+import { createBooking, checkUserBooking, deleteBooking } from '../lib/bookings';
+import { Event } from '../types/database';
+import { theme } from 'theme/theme';
+import { getDisplayAddress } from '../utils/getDisplayAddress';
 
 export default function EventDetailScreen() {
-  const { id } = useLocalSearchParams();
+  const { id } = useLocalSearchParams<{ id: string }>();
   const { user, isLoaded } = useUser();
   const [event, setEvent] = useState<Event | null>(null);
   const [loading, setLoading] = useState(true);
   const [isBooked, setIsBooked] = useState(false);
-  const [bookingLoading, setBookingLoading] = useState(false);
   const [bookingId, setBookingId] = useState<string | null>(null);
+  const [actionLoading, setActionLoading] = useState(false);
+  
+  const fadeAnim = useState(new Animated.Value(0))[0];
 
   useEffect(() => {
     if (isLoaded && id) {
@@ -25,16 +62,43 @@ export default function EventDetailScreen() {
     }
   }, [isLoaded, id]);
 
+  // Subscribe to real-time updates
+  useEffect(() => {
+    if (!id) return;
+
+    const subscription = subscribeToEventUpdates(id, (payload) => {
+      if (payload.eventType === 'UPDATE') {
+        setEvent(payload.new as Event);
+      } else if (payload.eventType === 'DELETE') {
+        Alert.alert('Event Deleted', 'This event has been deleted');
+        router.back();
+      }
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, [id]);
+
   const loadEventDetails = async () => {
     try {
-      const eventData = await getEventById(id as string);
+      const eventData = await getEventById(id);
       setEvent(eventData);
       
       if (user?.id) {
-        const booking = await checkUserBooking(id as string, user.id);
-        setIsBooked(!!booking);
-        setBookingId(booking && typeof booking === 'object' && 'id' in booking ? (booking as { id: string }).id : null);
+        const booking = await checkUserBooking(id, user.id);
+        if (booking) {
+          setIsBooked(true);
+          setBookingId(booking.id);
+        }
       }
+
+      // Fade in animation
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 400,
+        useNativeDriver: true,
+      }).start();
     } catch (error) {
       console.error('Error loading event details:', error);
       Alert.alert('Error', 'Unable to load event details');
@@ -44,153 +108,159 @@ export default function EventDetailScreen() {
     }
   };
 
- const handleBooking = async () => {
-  if (!user?.id || !event) return;
-  
-  if (isBooked && bookingId) {
-    // Navigate to QR code - make sure bookingId is not null
-    router.push(`/booking/${bookingId}`);
-    return;
-  }
-  
-  if (event.booked_count >= event.max_guests) {
-    Alert.alert('Error', 'No more spots available');
-    return;
-  }
-  
-  setBookingLoading(true);
-  try {
-    const booking = await createBooking(event.id, user.id);
-    setIsBooked(true);
-    setBookingId(booking.id);
+  const handleBooking = async () => {
+    if (!user?.id || !event) return;
     
-    // Update local event count
-    setEvent(prev => prev ? { ...prev, booked_count: prev.booked_count + 1 } : null);
-    
-    // Navigate to the QR code page immediately after booking
-    router.push(`/booking/${booking.id}`);
-  } catch (error: any) {
-    Alert.alert('Error', error.message || 'Booking failed');
-  }
-  setBookingLoading(false);
-};
-
-  const openMaps = () => {
-    if (!event?.location) {
-      console.log('No location available');
+    if (isBooked && bookingId) {
+      router.push(`/booking/${bookingId}`);
       return;
     }
     
-    console.log('Opening maps for location:', event.location);
+    if (event.booked_count >= event.max_guests) {
+      Alert.alert('Error', 'No more spots available');
+      return;
+    }
     
-    // Parse location if it's stored as JSON string
+    setActionLoading(true);
+    try {
+      const booking = await createBooking(event.id, user.id);
+      setIsBooked(true);
+      setBookingId(booking.id);
+      
+      // Update local event count
+      setEvent(prev => prev ? { ...prev, booked_count: prev.booked_count + 1 } : null);
+      
+      // Navigate to QR code
+      router.push(`/booking/${booking.id}`);
+    } catch (error: any) {
+      Alert.alert('Error', error.message || 'Booking failed');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleUnsubscribe = () => {
+    Alert.alert(
+      'Cancel Booking',
+      'Are you sure you want to cancel your booking for this event?',
+      [
+        { text: 'No', style: 'cancel' },
+        { 
+          text: 'Yes, Cancel', 
+          style: 'destructive',
+          onPress: async () => {
+            if (!bookingId || !user?.id) return;
+            
+            setActionLoading(true);
+            try {
+              await deleteBooking(bookingId, user.id);
+              setIsBooked(false);
+              setBookingId(null);
+              
+              // Update local event count
+              setEvent(prev => prev ? { 
+                ...prev, 
+                booked_count: Math.max(0, prev.booked_count - 1) 
+              } : null);
+              
+              Alert.alert('Success', 'Your booking has been cancelled');
+            } catch (error: any) {
+              Alert.alert('Error', error.message || 'Failed to cancel booking');
+            } finally {
+              setActionLoading(false);
+            }
+          }
+        }
+      ]
+    );
+  };
+
+  const handleEdit = () => {
+    router.push({ pathname: '/create-event', params: { id: event?.id, mode: 'edit' } });
+  };
+
+  const handleDelete = () => {
+    Alert.alert(
+      'Delete Event',
+      'Are you sure you want to delete this event? This action cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { 
+          text: 'Delete', 
+          style: 'destructive',
+          onPress: async () => {
+            if (!event || !user?.id) return;
+            
+            setActionLoading(true);
+            try {
+              await deleteEvent(event.id, user.id);
+              Alert.alert('Success', 'Event deleted successfully');
+              router.back();
+            } catch (error: any) {
+              Alert.alert('Error', error.message || 'Failed to delete event');
+            } finally {
+              setActionLoading(false);
+            }
+          }
+        }
+      ]
+    );
+  };
+
+  const openMaps = () => {
+    if (!event?.location) return;
+    
     let locationData: any;
     try {
       locationData = typeof event.location === 'string' 
         ? JSON.parse(event.location) 
         : event.location;
     } catch (error) {
-      console.error('Error parsing location:', error);
-      // If parsing fails, try to use it as a plain address
       locationData = { address: event.location };
     }
     
-    // Build the maps query
-    let mapsQuery = '';
     if (locationData.latitude && locationData.longitude) {
-      // Use coordinates if available
-      mapsQuery = `${locationData.latitude},${locationData.longitude}`;
-      
-      // Platform-specific URLs with coordinates
       const url = Platform.select({
         ios: `maps:0,0?ll=${locationData.latitude},${locationData.longitude}&q=${encodeURIComponent(locationData.address || 'Event Location')}`,
         android: `geo:${locationData.latitude},${locationData.longitude}?q=${encodeURIComponent(locationData.address || 'Event Location')}`,
       });
       
-      console.log('Maps URL:', url);
-      
       Linking.canOpenURL(url as string).then((supported) => {
-        console.log('Can open URL:', supported);
         if (supported) {
           Linking.openURL(url as string);
         } else {
-          // Fallback to Google Maps web with coordinates
           const webUrl = `https://www.google.com/maps/search/?api=1&query=${locationData.latitude},${locationData.longitude}`;
-          console.log('Opening web URL:', webUrl);
           Linking.openURL(webUrl);
         }
-      }).catch(error => {
-        console.error('Error opening maps:', error);
-        // Direct fallback to web
-        const webUrl = `https://www.google.com/maps/search/?api=1&query=${locationData.latitude},${locationData.longitude}`;
-        Linking.openURL(webUrl);
       });
     } else if (locationData.address) {
-      // Use address if no coordinates
       const encodedAddress = encodeURIComponent(locationData.address);
-      const url = Platform.select({
-        ios: `maps:0,0?q=${encodedAddress}`,
-        android: `geo:0,0?q=${encodedAddress}`,
-      });
-      
-      Linking.canOpenURL(url as string).then((supported) => {
-        if (supported) {
-          Linking.openURL(url as string);
-        } else {
-          // Fallback to Google Maps web
-          Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${encodedAddress}`);
-        }
-      }).catch(error => {
-        console.error('Error opening maps:', error);
-        Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${encodedAddress}`);
-      });
+      const url = `https://www.google.com/maps/search/?api=1&query=${encodedAddress}`;
+      Linking.openURL(url);
     }
   };
 
   if (!isLoaded || loading) {
     return (
-      <LinearGradient colors={['#0F0C29', '#302B63', '#24243e']} style={styles.gradient}>
+      <SafeGradientView>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#a855f7" />
+          <ActivityIndicator size="large" color={theme.colors.primary.purple} />
         </View>
-      </LinearGradient>
+      </SafeGradientView>
     );
   }
 
   if (!user || !event) {
     return (
-      <LinearGradient colors={['#0F0C29', '#302B63', '#24243e']} style={styles.gradient}>
+      <SafeGradientView>
         <View style={styles.errorContainer}>
           <Text style={styles.errorText}>Event not found</Text>
         </View>
-      </LinearGradient>
+      </SafeGradientView>
     );
   }
 
-  // Helper function to get display address
-  const getDisplayAddress = (location: any): string => {
-    if (!location) return 'TBA';
-    
-    try {
-      const locationData = typeof location === 'string' 
-        ? JSON.parse(location) 
-        : location;
-      
-      if (locationData.address) {
-        return locationData.address;
-      } else if (locationData.latitude && locationData.longitude) {
-        return `${locationData.latitude.toFixed(4)}, ${locationData.longitude.toFixed(4)}`;
-      }
-    } catch (error) {
-      // If parsing fails, return the location as is
-      if (typeof location === 'string') {
-        return location;
-      }
-    }
-    
-    return 'Location set';
-  };
-
+  const isOwner = event.owner_id === user.id;
   const availableSpots = event.max_guests - event.booked_count;
   const isSoldOut = availableSpots <= 0;
   const spotsPercentage = (event.booked_count / event.max_guests) * 100;
@@ -204,47 +274,65 @@ export default function EventDetailScreen() {
           headerTransparent: true,
           headerStyle: { backgroundColor: 'transparent' },
           headerLeft: () => (
-            <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-              <BlurView intensity={50} tint="dark" style={styles.backButtonBlur}>
-                <ChevronLeft size={20} color="white" />
-              </BlurView>
-            </TouchableOpacity>
+            <IconButton
+              icon={ChevronLeft}
+              onPress={() => router.back()}
+              style={styles.backButton}
+              blur
+            />
           ),
+          headerRight: () => isOwner ? (
+            <View style={styles.headerActions}>
+              <IconButton
+                icon={Edit3}
+                onPress={handleEdit}
+                size={40}
+                iconSize={20}
+                blur
+                style={styles.editButton}
+              />
+              <IconButton
+                icon={Trash2}
+                onPress={handleDelete}
+                size={40}
+                iconSize={20}
+                blur
+                style={styles.deleteButton}
+              />
+            </View>
+          ) : null,
         }}
       />
       
-      <LinearGradient
-        colors={['#0F0C29', '#302B63', '#24243e']}
-        style={styles.gradient}
-      >
+      <SafeGradientView edges={['bottom']}>
         <ScrollView 
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
-          {/* Hero Image */}
-          {event.image_url ? (
-            <Image source={{ uri: event.image_url }} style={styles.heroImage} />
-          ) : (
-            <LinearGradient
-              colors={['#5000ce', '#6900a3']}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.heroPlaceholder}
-            >
-              <Sparkles size={48} color="white" />
-            </LinearGradient>
-          )}
+          <Animated.View style={{ opacity: fadeAnim }}>
+            {/* Hero Image */}
+            {event.image_url ? (
+              <Image source={{ uri: event.image_url }} style={styles.heroImage} />
+            ) : (
+              <LinearGradient
+                colors={[...theme.colors.primary.gradient]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.heroPlaceholder}
+              >
+                <Sparkles size={48} color="white" />
+              </LinearGradient>
+            )}
 
-          {/* Content */}
-          <View style={styles.contentContainer}>
-            {/* Title */}
-            <Text style={styles.title}>{event.title}</Text>
+            {/* Content */}
+            <View style={styles.contentContainer}>
+              {/* Title */}
+              <Text style={styles.title}>{event.title}</Text>
 
-            {/* Quick Stats */}
-            <View style={styles.statsContainer}>
-              <View style={styles.statCardWrapper}>
-                <BlurView intensity={20} tint="dark" style={styles.statCard}>
-                  <Calendar size={20} color="#a855f7" />
+              {/* Quick Stats */}
+              <View style={styles.statsContainer}>
+                <BlurCard style={styles.statCard}>
+                  <Calendar size={20} color={theme.colors.primary.purple} />
                   <Text style={styles.statLabel}>Date</Text>
                   <Text style={styles.statValue}>
                     {new Date(event.date).toLocaleDateString('en-US', {
@@ -252,57 +340,59 @@ export default function EventDetailScreen() {
                       day: 'numeric'
                     })}
                   </Text>
-                </BlurView>
-              </View>
+                </BlurCard>
 
-              <View style={styles.statCardWrapper}>
-                <BlurView intensity={20} tint="dark" style={styles.statCard}>
-                  <Users size={20} color="#a855f7" />
+                <BlurCard style={styles.statCard}>
+                  <Users size={20} color={theme.colors.primary.purple} />
                   <Text style={styles.statLabel}>Spots</Text>
                   <Text style={styles.statValue}>{availableSpots} left</Text>
-                </BlurView>
+                </BlurCard>
+
+                <TouchableOpacity 
+                  onPress={openMaps}
+                  disabled={!event.location}
+                  activeOpacity={0.8}
+                >
+                  <BlurCard style={StyleSheet.flatten([styles.statCard, event.location && styles.clickableCard])}>
+                    <MapPin size={20} color={theme.colors.primary.purple} />
+                    <Text style={styles.statLabel}>Venue</Text>
+                    <Text style={styles.statValue} numberOfLines={1}>
+                      {(() => {
+                        const address = getDisplayAddress(event.location).split(',')[0];
+                        return address.length > 8 ? address.substring(0, 8) + '...' : address;
+                      })()}
+                    </Text>
+                    {event.location && (
+                      <ExternalLink
+                        size={12}
+                        color={theme.colors.text.muted}
+                        style={styles.linkIcon}
+                      />
+                    )}
+                  </BlurCard>
+                </TouchableOpacity>
               </View>
 
-              <TouchableOpacity 
-                style={styles.statCardWrapper}
-                onPress={openMaps}
-                disabled={!event.location}
-                activeOpacity={0.8}
-              >
-                <BlurView intensity={20} tint="dark" style={[styles.statCard, event.location && styles.clickableCard]}>
-                  <MapPin size={20} color="#a855f7" />
-                  <Text style={styles.statLabel}>Venue</Text>
-                  <Text style={styles.statValue} numberOfLines={1}>
-                    {getDisplayAddress(event.location).split(',')[0]}
-                  </Text>
-                  {event.location && <ExternalLink size={12} color="rgba(255,255,255,0.4)" style={styles.linkIcon} />}
-                </BlurView>
-              </TouchableOpacity>
-            </View>
-
-            {/* Description */}
-            {event.description && (
-              <View style={styles.section}>
-                <View style={styles.sectionHeader}>
-                  <Info size={18} color="rgba(255,255,255,0.6)" />
-                  <Text style={styles.sectionTitle}>About</Text>
-                </View>
-                <View style={styles.descriptionCardWrapper}>
-                  <BlurView intensity={20} tint="dark" style={styles.descriptionCard}>
+              {/* Description */}
+              {event.description && (
+                <View style={styles.section}>
+                  <View style={styles.sectionHeader}>
+                    <Info size={18} color={theme.colors.text.muted} />
+                    <Text style={styles.sectionTitle}>About</Text>
+                  </View>
+                  <BlurCard style={styles.descriptionCard}>
                     <Text style={styles.description}>{event.description}</Text>
-                  </BlurView>
+                  </BlurCard>
                 </View>
-              </View>
-            )}
+              )}
 
-            {/* Event Details */}
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Event Details</Text>
-              
-              <View style={styles.detailsCardWrapper}>
-                <BlurView intensity={20} tint="dark" style={styles.detailsCard}>
+              {/* Event Details */}
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>Event Details</Text>
+                
+                <BlurCard style={styles.detailsCard}>
                   <View style={styles.detailRow}>
-                    <Calendar size={16} color="rgba(255,255,255,0.6)" />
+                    <Calendar size={16} color={theme.colors.text.muted} />
                     <View style={styles.detailContent}>
                       <Text style={styles.detailLabel}>Date & Time</Text>
                       <Text style={styles.detailValue}>
@@ -328,19 +418,19 @@ export default function EventDetailScreen() {
                       onPress={openMaps}
                       activeOpacity={0.8}
                     >
-                      <MapPin size={16} color="rgba(255,255,255,0.6)" />
+                      <MapPin size={16} color={theme.colors.text.muted} />
                       <View style={styles.detailContent}>
                         <Text style={styles.detailLabel}>Location</Text>
                         <Text style={[styles.detailValue, styles.locationText]}>
                           {getDisplayAddress(event.location)}
                         </Text>
                       </View>
-                      <ExternalLink size={14} color="rgba(255,255,255,0.4)" />
+                      <ExternalLink size={14} color={theme.colors.text.muted} />
                     </TouchableOpacity>
                   )}
 
                   <View style={styles.detailRow}>
-                    <Users size={16} color="rgba(255,255,255,0.6)" />
+                    <Users size={16} color={theme.colors.text.muted} />
                     <View style={styles.detailContent}>
                       <Text style={styles.detailLabel}>Capacity</Text>
                       <Text style={styles.detailValue}>
@@ -348,93 +438,84 @@ export default function EventDetailScreen() {
                       </Text>
                       <View style={styles.progressContainer}>
                         <View style={styles.progressBar}>
-                          <LinearGradient
-                            colors={isSoldOut ? ['#ef4444', '#dc2626'] : ['#5000ce', '#6900a3']}
-                            start={{ x: 0, y: 0 }}
-                            end={{ x: 1, y: 0 }}
-                            style={[styles.progressFill, { width: `${spotsPercentage}%` }]}
+                          <Animated.View
+                            style={[
+                              styles.progressFill,
+                              {
+                                width: `${Math.min(spotsPercentage, 100)}%`,
+                                backgroundColor: isSoldOut 
+                                  ? theme.colors.status.error 
+                                  : theme.colors.primary.purple,
+                              }
+                            ]}
                           />
                         </View>
                       </View>
                     </View>
                   </View>
-                </BlurView>
+                </BlurCard>
               </View>
             </View>
-          </View>
+          </Animated.View>
         </ScrollView>
 
-        {/* Bottom Action */}
+        {/* Bottom Actions */}
         <View style={styles.bottomContainer}>
-          <BlurView intensity={80} tint="dark" style={styles.bottomBlur}>
-            <TouchableOpacity
-              onPress={handleBooking}
-              disabled={bookingLoading || (isSoldOut && !isBooked)}
-              activeOpacity={0.8}
-              style={styles.actionButtonContainer}
-            >
-              <LinearGradient
-                colors={
-                  isBooked 
-                    ? ['#a855f7', '#9333ea']
-                    : (bookingLoading || isSoldOut) 
-                      ? ['#6b7280', '#4b5563'] 
-                      : ['#5000ce', '#6900a3']
-                }
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={styles.actionButton}
-              >
-                {bookingLoading ? (
-                  <ActivityIndicator size="small" color="white" />
-                ) : isBooked ? (
-                  <>
-                    <QrCode color="white" size={20} />
-                    <Text style={styles.actionButtonText}>View QR Code</Text>
-                  </>
-                ) : (
-                  <>
-                    <Sparkles color="white" size={20} />
-                    <Text style={styles.actionButtonText}>
-                      {isSoldOut ? 'Sold Out' : 'Book Now'}
-                    </Text>
-                  </>
-                )}
-              </LinearGradient>
-            </TouchableOpacity>
-          </BlurView>
+          <BlurCard style={styles.bottomCard}>
+            <View style={styles.bottomContent}>
+              {!isOwner && (
+                <>
+                  {isBooked ? (
+                    <View style={styles.bookedActions}>
+                      <ActionButton
+                        title="View QR Code"
+                        onPress={handleBooking}
+                        icon={QrCode}
+                        loading={actionLoading}
+                        disabled={actionLoading}
+                        variant="secondary"
+                        style={styles.actionButton}
+                      />
+                      <ActionButton
+                        title="Cancel Booking"
+                        onPress={handleUnsubscribe}
+                        icon={XCircle}
+                        loading={actionLoading}
+                        disabled={actionLoading}
+                        variant="danger"
+                        style={styles.actionButton}
+                      />
+                    </View>
+                  ) : (
+                    <ActionButton
+                      title={isSoldOut ? 'Sold Out' : 'Book Now'}
+                      onPress={handleBooking}
+                      icon={Sparkles}
+                      loading={actionLoading}
+                      disabled={actionLoading || isSoldOut}
+                      variant="primary"
+                    />
+                  )}
+                </>
+              )}
+              
+              {isOwner && (
+                <View style={styles.ownerInfo}>
+                  <Text style={styles.ownerText}>You're hosting this event</Text>
+                  <Text style={styles.attendeeCount}>
+                    {event.booked_count} {event.booked_count === 1 ? 'attendee' : 'attendees'} registered
+                  </Text>
+                </View>
+              )}
+            </View>
+          </BlurCard>
         </View>
-      </LinearGradient>
+      </SafeGradientView>
     </>
   );
 }
 
 const styles = StyleSheet.create({
-  buttonContainer: {
-    alignItems: "center",   
-    marginBottom: 20,
-  },
-  container: {
-    width: "80%",
-    backgroundColor: "#007AFF",
-    flexDirection: "row",
-    borderRadius: 25,
-    gap: 10,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  buttonText: {
-    fontSize: 15,
-    padding: 15,
-    fontWeight: "medium",
-    color: "white",
-  },
-  gradient: {
-    flex: 1,
-  },
-  scrollContent: {
-    paddingBottom: 120,
-  },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
@@ -444,24 +525,29 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 20,
+    padding: theme.spacing.lg,
   },
   errorText: {
-    fontSize: 18,
-    color: '#ef4444',
+    fontSize: theme.typography.fontSize.lg,
+    color: theme.colors.status.error,
     textAlign: 'center',
   },
   backButton: {
-    marginLeft: 10,
+    marginLeft: theme.spacing.sm,
   },
-  backButtonBlur: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-    overflow: 'hidden',
-    backgroundColor: 'rgba(255,255,255,0.1)',
+  headerActions: {
+    flexDirection: 'row',
+    gap: theme.spacing.xs,
+    marginRight: theme.spacing.sm,
+  },
+  editButton: {
+    backgroundColor: theme.colors.ui.border,
+  },
+  deleteButton: {
+    backgroundColor: 'rgba(239, 68, 68, 0.2)',
+  },
+  scrollContent: {
+    paddingBottom: 120,
   },
   heroImage: {
     width: '100%',
@@ -475,121 +561,100 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   contentContainer: {
-    padding: 20,
+    padding: theme.spacing.lg,
     marginTop: -30,
   },
   title: {
-    fontSize: 32,
-    fontWeight: '800',
-    color: '#fff',
-    marginBottom: 20,
-    marginTop: 20,
-    letterSpacing: -0.5,
+    fontSize: theme.typography.fontSize['3xl'],
+    fontWeight: theme.typography.fontWeight.extrabold,
+    color: theme.colors.text.primary,
+    marginBottom: theme.spacing.lg,
+    marginTop: theme.spacing.lg,
+    letterSpacing: theme.typography.letterSpacing.tight,
   },
   statsContainer: {
     flexDirection: 'row',
-    gap: 12,
-    marginBottom: 30,
-  },
-  statCardWrapper: {
-    flex: 1,
-    borderRadius: 16,
-    overflow: 'hidden',
-    backgroundColor: 'rgba(255,255,255,0.05)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
+    gap: theme.spacing.md,
+    marginBottom: theme.spacing.xl,
   },
   statCard: {
-    padding: 16,
+    flex: 1,
+    padding: theme.spacing.md,
     alignItems: 'center',
-    gap: 8,
+    gap: theme.spacing.xs,
   },
   clickableCard: {
     position: 'relative',
   },
   linkIcon: {
     position: 'absolute',
-    top: 8,
-    right: 8,
+    top: theme.spacing.sm,
+    right: theme.spacing.sm,
   },
   statLabel: {
-    fontSize: 12,
-    color: 'rgba(255,255,255,0.6)',
+    fontSize: theme.typography.fontSize.xs,
+    color: theme.colors.text.muted,
   },
   statValue: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#fff',
+    fontSize: theme.typography.fontSize.md,
+    fontWeight: theme.typography.fontWeight.semibold,
+    color: theme.colors.text.primary,
   },
   section: {
-    marginBottom: 24,
+    marginBottom: theme.spacing.lg,
   },
   sectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    marginBottom: 12,
+    gap: theme.spacing.sm,
+    marginBottom: theme.spacing.md,
   },
   sectionTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: 'rgba(255,255,255,0.8)',
-  },
-  descriptionCardWrapper: {
-    borderRadius: 16,
-    overflow: 'hidden',
-    backgroundColor: 'rgba(255,255,255,0.05)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
+    fontSize: theme.typography.fontSize.lg,
+    fontWeight: theme.typography.fontWeight.semibold,
+    color: theme.colors.text.secondary,
   },
   descriptionCard: {
-    padding: 20,
+    padding: theme.spacing.lg,
   },
   description: {
-    fontSize: 16,
+    fontSize: theme.typography.fontSize.md,
     lineHeight: 24,
-    color: 'rgba(255,255,255,0.8)',
-  },
-  detailsCardWrapper: {
-    borderRadius: 16,
-    overflow: 'hidden',
-    backgroundColor: 'rgba(255,255,255,0.05)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
-    marginTop:15,
+    color: theme.colors.text.primary,
   },
   detailsCard: {
-    padding: 20,
-    gap: 20,
+    padding: theme.spacing.lg,
+    gap: theme.spacing.lg,
+    marginTop: theme.spacing.md,
   },
   detailRow: {
     flexDirection: 'row',
-    gap: 12,
+    gap: theme.spacing.md,
     alignItems: 'center',
   },
   detailContent: {
     flex: 1,
   },
   detailLabel: {
-    fontSize: 12,
-    color: 'rgba(255,255,255,0.6)',
-    marginBottom: 4,
+    fontSize: theme.typography.fontSize.xs,
+    color: theme.colors.text.muted,
+    marginBottom: theme.spacing.xs,
   },
   detailValue: {
-    fontSize: 16,
-    color: '#fff',
+    fontSize: theme.typography.fontSize.md,
+    color: theme.colors.text.primary,
     lineHeight: 22,
   },
   locationText: {
-    color: '#a855f7',
+    color: theme.colors.primary.purple,
     textDecorationLine: 'underline',
   },
   progressContainer: {
-    marginTop: 8,
+    marginTop: theme.spacing.sm,
   },
   progressBar: {
     height: 6,
-    backgroundColor: 'rgba(255,255,255,0.1)',
+    backgroundColor: theme.colors.ui.border,
     borderRadius: 3,
     overflow: 'hidden',
   },
@@ -603,35 +668,32 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
   },
-  bottomBlur: {
-    paddingHorizontal: 20,
-    paddingTop: 20,
-    paddingBottom: 40,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(255,255,255,0.1)',
+  bottomCard: {
+    margin: theme.spacing.lg,
+    marginBottom: theme.spacing.xl,
   },
-  actionButtonContainer: {
-    width: '100%',
+  bottomContent: {
+    padding: theme.spacing.md,
+  },
+  bookedActions: {
+    flexDirection: 'row',
+    gap: theme.spacing.sm,
   },
   actionButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 12,
-    paddingVertical: 18,
-    marginLeft:40,
-    marginRight:40,
-    borderRadius: 30,
-    shadowColor: '#a855f7',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.4,
-    shadowRadius: 16,
-    elevation: 8,
+    flex: 1,
   },
-  actionButtonText: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: 'white',
-    letterSpacing: 0.5,
+  ownerInfo: {
+    alignItems: 'center',
+    gap: theme.spacing.xs,
+  },
+  ownerText: {
+    fontSize: theme.typography.fontSize.md,
+    color: theme.colors.text.secondary,
+    fontWeight: theme.typography.fontWeight.medium,
+  },
+  attendeeCount: {
+    fontSize: theme.typography.fontSize.lg,
+    color: theme.colors.text.primary,
+    fontWeight: theme.typography.fontWeight.semibold,
   },
 });

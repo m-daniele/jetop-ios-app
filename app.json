@@ -5,6 +5,7 @@
     "slug": "jetop-ios-app",
     "version": "1.0.0",
     "scheme": "jetop-ios-app",
+    
     "web": {
       "bundler": "metro",
       "output": "static",
@@ -25,7 +26,7 @@
       "tsconfigPaths": true
     },
     "orientation": "portrait",
-    "userInterfaceStyle": "light",
+    "userInterfaceStyle": "dark",
     "splash": {
       "image": "./assets/splash.png",
       "resizeMode": "contain",
