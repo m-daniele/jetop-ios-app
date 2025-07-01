@@ -283,7 +283,7 @@ console.log('DB test:', { data, error });
 
 ## Contributing
 
-This is a university team challenge project! To contribute:
+If you want to contribute to my code:
 
 1. Fork the repo
 2. Create feature branch: `git checkout -b feature/my-feature`
@@ -297,13 +297,3 @@ This is a university team challenge project! To contribute:
 - Follow ESLint rules: `npm run lint`
 - Write tests for new features
 
-## Team & Challenge Info
-
-**Team**: JEToP
-**Challenge**: Mobile Event Management App  
-**Platform**: iOS Only  
-**Timeline**: IT area Challenge 2025  
-
----
-
-**Built with** 💜 **for JEToP**
