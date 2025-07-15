@@ -1,4 +1,4 @@
-# React Native Event Management App
+# Event Management App
 
 ### Overview
 
