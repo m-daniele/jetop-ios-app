@@ -9,7 +9,7 @@ Event management app built during a two-week team challenge. The app allows user
 
 - **Event Management**: Create and edit events with location settings and capacity limits
 - **Smart Booking**: Real-time availability tracking with QR code generation
-- **Social Features**: User profiles with AI-powered username generation
+- **Social Features**: User profile and AI-powered username generation
 - **Fun Extras**: Built-in dice roller for games and activities
 
 
