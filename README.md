@@ -12,13 +12,6 @@ Event management app built during a two-week team challenge. The app allows user
 - **Social Features**: User profile and AI-powered username generation
 - **Fun Extras**: Built-in dice roller for games and activities
 
-
-### Demo
-To try the app, install Expo Go on your mobile device and open this link:
-
-```
-exp://u.expo.dev/update/6b3f3afe-ddd4-47aa-8960-4e9d06e76cb9
-```
 ### Known Limitations
 
 - Codebase lacks comments, documentation, and comprehensive review
